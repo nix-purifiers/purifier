@@ -9,6 +9,8 @@
 {
   # The Python version, such as "3.14".
   pythonVersion,
+  # CPython's free-threaded build has a distinct extension ABI (cp314t).
+  freeThreaded ? false,
   # The CPU name in a wheel's platform tag: "x86_64" or "aarch64" on Linux,
   # "arm64" on macOS.
   arch,
@@ -112,8 +114,8 @@ let
     platformMatches platform
     && (
       (abi == "none" && (pythonTagMatches python || python == cpython))
-      || (abi == "abi3" && stableAbiMatches python)
-      || (abi == cpython && python == cpython)
+      || (!freeThreaded && abi == "abi3" && stableAbiMatches python)
+      || (abi == cpython + (if freeThreaded then "t" else "") && python == cpython)
     );
 in
 assert
