@@ -60,13 +60,30 @@ class TargetTagsTests(unittest.TestCase):
         if self.facts['system'] != 'Linux' or self.facts['glibc'][0] != 2:
             self.skipTest('native glibc platform assertion')
         target = self.version(3, 8)
-        target['glibc'] = [2, 17]
+        target['glibc'] = [2, 28]
         target['manylinux'] = {'flags': {'manylinux2014_compatible': False}, 'versions': {}}
         tags = self.tags(target)
-        self.assertFalse(any('manylinux_2_18_' in tag for tag in tags))
+        self.assertFalse(any('manylinux_2_29_' in tag for tag in tags))
+        self.assertTrue(any('manylinux_2_28_' in tag for tag in tags))
         self.assertFalse(any('manylinux_2_17_' in tag for tag in tags))
         self.assertFalse(any('manylinux2014_' in tag for tag in tags))
-        self.assertTrue(any('manylinux_2_16_' in tag for tag in tags))
+        self.assertTrue(any('manylinux_2_27_' in tag for tag in tags))
+
+    def test_target_manylinux_callback_preserves_none_and_explicit_veto(self):
+        if self.facts['system'] != 'Linux' or self.facts['glibc'][0] != 2:
+            self.skipTest('native glibc platform assertion')
+        target = self.version(3, 8)
+        target['glibc'] = [2, 28]
+        arch = target['platform'].replace('-', '_').replace('.', '_')[len('linux_'):]
+        archs = ['armv8l', 'armv7l'] if arch == 'armv8l' else [arch]
+        target['manylinux'] = {'flags': {}, 'callback': True, 'versions': {
+            f'2.{minor}.{value}': False if minor == 27 else None
+            for value in archs for minor in range(29)
+        }}
+        tags = self.tags(target)
+        self.assertTrue(any('manylinux_2_28_' in tag for tag in tags))
+        self.assertFalse(any('manylinux_2_27_' in tag for tag in tags))
+        self.assertTrue(any('manylinux_2_26_' in tag for tag in tags))
 
     def test_target_pointer_width_controls_linux_architecture(self):
         if self.facts['system'] != 'Linux':
