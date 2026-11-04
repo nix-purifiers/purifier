@@ -428,11 +428,13 @@ in
       ''
         mkdir -p tools tests/rubygems
         cp ${../tools/rubygems_repository.rb} tools/rubygems_repository.rb
+        cp ${../tools/rubygems_codec.rb} tools/rubygems_codec.rb
         cp ${./rubygems/test_repository.rb} tests/rubygems/test_repository.rb
         export HOME=$TMPDIR
         ruby tests/rubygems/test_repository.rb
-        export RUBYGEMS_PROJECTOR=${../tools/rubygems_repository.rb}
+        export RUBYGEMS_PROJECTOR=${../tools}/rubygems_repository.rb
         ruby ${./rubygems/historical_repository.rb}
+        ${pkgs.python3}/bin/python3 ${./rubygems/codec_native.py} ${pkgs.ruby} ${../tools}/rubygems_repository.rb
         touch $out
       '';
 
@@ -670,8 +672,9 @@ in
     pkgs.runCommand "purifier-rubygems-ruby25-tests" { } ''
       export HOME=$TMPDIR
       export EXPECTED_RUBY_VERSION=2.5.8
-      export RUBYGEMS_PROJECTOR=${../tools/rubygems_repository.rb}
+      export RUBYGEMS_PROJECTOR=${../tools}/rubygems_repository.rb
       ${old.ruby_2_5}/bin/ruby ${./rubygems/historical_repository.rb}
+      ${pkgs.python3}/bin/python3 ${./rubygems/codec_native.py} ${old.ruby_2_5} ${../tools}/rubygems_repository.rb
       touch $out
     '';
 }

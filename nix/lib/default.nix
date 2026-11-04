@@ -8,6 +8,7 @@
   projectInputsTool = ../../tools;
   testFixtures.nativePythonComposition = ../../tests/python/native_composition.py;
   testFixtures.jsonConsumer = ../../tests/json-consumer.nix;
+  rubygemsCodecCompatibility = ../../tools/rubygems_codec.rb;
   rubygemsProjections = import ./rubygems-projections.nix { inherit lib; };
   npmProjections = import ./npm-projections.nix { inherit lib; };
   npmRepositoryTool = ../../tools/npm_repository.py;

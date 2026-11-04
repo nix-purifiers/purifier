@@ -265,7 +265,7 @@ helper does not resolve or reinstall dependencies.
 ### `rubygemsProjections`
 
 `rubygemsProjections { archives; producer; roots ? null; dependencies ? [];
-ruby; runCommand; intrinsics ? []; }` exports `projections.rubygems` with a `catalog` attribute.
+ruby; indexRuby ? ruby; runCommand; intrinsics ? []; }` exports `projections.rubygems` with a `catalog` attribute.
 Pass native `.gem` archive paths and the Nix producer that owns them.
 The adapter uses RubyGems to rebuild owned packages with Nix-derived versions
 and exact runtime requirements for supplied gems. Dependency projections keep
@@ -279,6 +279,20 @@ not republished as renamed standard-library gems.
 
 The caller supplies prepared archives for its target Ruby and platform.
 This adapter does not compile extensions or capture an installed bundle.
+
+The archive codec runs on `ruby`; `indexRuby` independently writes the native
+Marshal index from the resulting archives. Older interpreters can use a modern
+index helper without changing their compiled payloads or runtime SDK. The old
+RubyGems codec adapter honors `SOURCE_DATE_EPOCH` (zero when absent), fixes
+native tar/gzip timestamps, and emits deterministic Syck map ordering on MRI
+1.8. It retains native package encoding and ordinary client decoding.
+
+The codec integration test checks duplicate archive bytes at different paths,
+reachable roots, exact dependency pins, repeated repository bytes, provided
+archive reuse and ordinary installation/execution. Ruby 1.8.7p374 with RubyGems
+2.6.14 and a Ruby 3.4.11 index helper has also passed the native test and ordinary
+HTTP index resolution. These are exact tested components and operations, not a
+claim about an interval of SDK versions or every purifier lifecycle flow.
 
 ### `pythonProjections`
 
