@@ -16,6 +16,8 @@
   pythonProjections = import ./python-projections.nix { inherit lib; };
   pythonRepositoryTool = ../../tools/python_repository.py;
   jvmProjections = import ./jvm-projections.nix { inherit lib; };
+  webjarProjections = import ./webjar-projections.nix { inherit lib; };
+  nativeProjections = import ./native-projections.nix { inherit lib; };
   coursierInputsTool = ../../tools;
   clojureRewriteTool = ../../tools/rewrite_clojure.clj;
   jvmRepositoryTool = ../../tools/jvm_repository.py;

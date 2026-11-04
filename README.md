@@ -454,6 +454,68 @@ A compiled wheel gets this Python's CPython tags. Its platform tag
 `manylinux_2_<N>_<cpu>` becomes `manylinux_2_<glibc minor>_<arch>`. Any
 other platform tag fails evaluation. It comes from poetry-purifier.
 
+### Cross-type projections
+
+`webjarProjections` packages an already-built browser asset directory using
+the [WebJar resource layout](https://www.webjars.org/documentation). It returns
+`maven` and `ivy` views with the shared JVM publisher's immutable versions and
+catalogs. For example, a JavaScript producer can attach:
+
+```nix
+projections = purifier.webjarProjections {
+  producer = project;
+  assets = "${project}/dist";
+  artifactId = "my-ui";
+  version = "1.0.0";
+  inherit (pkgs) runCommand python3;
+};
+```
+
+`groupId` defaults to `org.webjars.npm`; scoped npm names need an explicit
+Maven-safe `artifactId`. Assets appear at
+`META-INF/resources/webjars/my-ui/1.0.0/` even though the Maven/Ivy version
+includes the immutable producer identity. This exports built browser assets;
+it does not translate npm dependency ranges, run bundlers, or bundle missing
+dependencies. Supply a self-contained asset directory. Empty directories and
+asset symlinks escaping that directory fail the build. Both helpers accept an
+optional derivation `name`.
+
+`nativeProjections` exports explicitly selected shared libraries from any
+built native producer:
+
+```nix
+projections = purifier.nativeProjections {
+  producer = project;
+  libraries.answer = "lib/libanswer${pkgs.stdenv.hostPlatform.extensions.sharedLibrary}";
+  system = pkgs.stdenv.hostPlatform.system;
+  inherit (pkgs) runCommand python3;
+};
+```
+
+The returned `native`, `python-ffi` and `java-ffi` views refer to one output.
+Its `catalog.json` records the producer identity, declared target system and
+absolute library paths; it is also exposed through the view's `catalog`
+attribute. Missing libraries and absolute or traversing input paths fail the
+build. The producer must supply compatible shared libraries with their runtime
+dependencies resolved, for example through Nix RPATHs. The declared system is
+metadata, not architecture detection or cross-compilation.
+
+For Python, put `${projections.python-ffi}` on `PYTHONPATH`, then use
+`import purifier_native; library = purifier_native.load("answer")`. Set ctypes
+`argtypes` and `restype` for the library's C ABI before calling its functions.
+Loading is lazy; `load` also accepts keyword arguments for `ctypes.CDLL`.
+The generic module represents one projection per Python import path.
+
+For Java, use `java @${projections.java-ffi}/java.args …` to set
+`java.library.path`, or read an absolute path from the catalog for
+`System.load`/FFM `SymbolLookup.libraryLookup`. JNI libraries must already
+implement the application's JNI bindings. Ordinary C libraries require FFM,
+JNA or another binding layer; this helper does not synthesize bindings or
+package native code as a wheel/JAR. Consumers must match the target system
+and ABI. The native integration check compiles one library and calls it from
+both Python ctypes and Java JNI; the WebJar check reads an asset from a real
+Java classpath.
+
 ## Credits
 
 The purifier idea was inspired by nixcloud's

@@ -182,7 +182,20 @@ let
         PYTHON
       '';
 in
-{
+(import ./cross-type.nix { inherit pkgs purifier; })
+// {
+  cross-type-unit =
+    runCommand "purifier-cross-type-unit"
+      {
+        nativeBuildInputs = [ pkgs.python3 ];
+      }
+      ''
+        mkdir -p tools tests
+        cp ${../tools/cross_type.py} tools/cross_type.py
+        cp ${./test_cross_type.py} tests/test_cross_type.py
+        python -B tests/test_cross_type.py
+        touch $out
+      '';
   npm-input-selection =
     let
       repository = pkgs.runCommand "npm-selection-repository" {
