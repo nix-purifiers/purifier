@@ -62,7 +62,7 @@ Dir.mktmpdir("bundler-nix-input-") do |root|
     index = "#{kind}.4.8.gz"
     raise "repository index changed during reuse" unless File.binread(File.join(projection,index)) == File.binread(File.join(reused,index))
     Zlib::GzipReader.open(File.join(projection,index)) do |reader|
-      raise "repository index has a wall-clock timestamp" unless reader.mtime.to_i == 0
+      raise "repository index has a wall-clock timestamp" unless reader.mtime.to_i == 1
     end
   end
   repo = reused

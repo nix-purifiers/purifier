@@ -163,7 +163,8 @@ specs = entries.map { |entry| [entry.fetch("name"), Gem::Version.new(entry.fetch
   "prerelease_specs" => specs.select { |_, version, _| version.prerelease? },
 }.each do |kind, values|
   Zlib::GzipWriter.open(File.join(destination, "#{kind}.4.8.gz")) do |writer|
-    writer.mtime = 0
+    # Older zlib bindings treat zero as "use the current time".
+    writer.mtime = 1
     writer.write(Marshal.dump(values))
   end
 end

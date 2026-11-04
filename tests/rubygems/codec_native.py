@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MIT
 """Native codecs, duplicate bytes, reachability, provided reuse and ordinary install."""
+import gzip
 import hashlib
+import time
 import http.server
 from functools import partial
 import threading
@@ -63,12 +65,14 @@ end
         return repository, catalog, content
 
     repository, catalog, content = project('first', request)
+    time.sleep(2)
     repeat, _, repeated = project('repeat', dict(request, identity='independent'))
     assert content == repeated, json.dumps([content, repeated], indent=2)
     assert catalog.read_bytes() == (root / 'repeat-catalog.json').read_bytes()
     for path in repository.rglob('*'):
         if path.is_file():
-            assert path.read_bytes() == (repeat / path.relative_to(repository)).read_bytes(), path
+            other = repeat / path.relative_to(repository)
+            assert path.read_bytes() == other.read_bytes(), (str(path), path.read_bytes()[:24].hex(), other.read_bytes()[:24].hex(), gzip.decompress(path.read_bytes()) == gzip.decompress(other.read_bytes()) if path.suffix == '.gz' else None)
     packages = {entry['name']: entry for entry in content['packages']}
     assert set(packages) == {'native-a', 'native-b'}
     for entry in packages.values():
