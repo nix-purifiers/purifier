@@ -456,6 +456,26 @@ other platform tag fails evaluation. It comes from poetry-purifier.
 
 ### Cross-type projections
 
+`dataProjections { producer; files; runCommand; python3; name ? ...; }`
+publishes evaluated JSON. `files` maps logical names to paths relative to
+`producer`; for example `{ default = "output.json"; }`. The returned `json`
+view exposes `files.default` as a store path and `catalog` as a separate
+metadata path. Its catalog records the producer identity and SHA-256 of each
+document. Publication validates strict JSON and preserves the original bytes.
+It does not evaluate expressions, generate schemas, or claim package/ABI
+compatibility. Ordinary tools such as Helm consume the files natively.
+
+`nativeTargetProjections` adapts installed CMake/Meson target metadata into
+`nativeProjections`. Pass `producer`, `targets` (each with `type` and relative
+`files`), `installedFiles`, `system`, `runCommand`, and `python3`. It selects
+only installed shared-library targets, prefers an unversioned linker name
+over symlinks for the same library, and rejects unsupported or ambiguous shared
+artifacts. Static libraries, executables and runtime plugins do not acquire
+FFI projections. Header and pkg-config directories remain in the producer
+prefix and are recorded in the catalog; runtime dependencies stay in its Nix
+closure. `nativeProjections` also accepts `includeDirectories`,
+`pkgConfigDirectories`, and `targetMetadata` arguments.
+
 `webjarProjections` packages an already-built browser asset directory using
 the [WebJar resource layout](https://www.webjars.org/documentation). It returns
 `maven` and `ivy` views with the shared JVM publisher's immutable versions and
@@ -497,8 +517,12 @@ Its `catalog.json` records the producer identity, declared target system and
 absolute library paths; it is also exposed through the view's `catalog`
 attribute. Missing libraries and absolute or traversing input paths fail the
 build. The producer must supply compatible shared libraries with their runtime
-dependencies resolved, for example through Nix RPATHs. The declared system is
-metadata, not architecture detection or cross-compilation.
+dependencies resolved, for example through Nix RPATHs. Publication validates
+the shared binary header against the declared system (ELF64 Linux or Mach-O
+64-bit Darwin, x86_64/aarch64). Mismatched architecture or executable/static
+formats fail. This checks binary ABI, not symbol signatures, C++ ABI versions
+or cross-compilation. Consumers using `projectInputs` can pass `system` to
+reject a native projection for a different target at evaluation time.
 
 For Python, put `${projections.python-ffi}` on `PYTHONPATH`, then use
 `import purifier_native; library = purifier_native.load("answer")`. Set ctypes

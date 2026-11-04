@@ -48,6 +48,19 @@ let
       };
     };
   force = value: builtins.tryEval (builtins.deepSeq value true);
+  nativeTargets =
+    targets:
+    purifier.nativeTargetProjections {
+      producer = source;
+      inherit targets;
+      system = "x86_64-linux";
+      inherit (pkgs) runCommand python3;
+    };
+  nativeDependency = source // {
+    projections.native = maven // {
+      system = "aarch64-linux";
+    };
+  };
 in
 # No import from a derivation: all three identities are evaluated while the
 # synthetic repositories have not been built and contain no Maven catalog.
@@ -71,6 +84,42 @@ assert
   (builtins.head (select [ "maven" ])).repositoryIdentity.hash != (builtins.head (select [ "ivy" ]))
   .repositoryIdentity.hash;
 assert !(force (select [ "npm" ])).success;
+assert
+  nativeTargets {
+    executable = {
+      type = "EXECUTABLE";
+      files = [ "bin/run" ];
+    };
+  } == { };
+assert
+  !(force (
+    (nativeTargets {
+      ambiguous = {
+        type = "SHARED_LIBRARY";
+        files = [
+          "lib/libone.so"
+          "lib/libtwo.so"
+        ];
+      };
+    }).native.drvPath
+  )).success;
+assert
+  !(force (
+    (nativeTargets {
+      unsupported = {
+        type = "SHARED_LIBRARY";
+        files = [ "lib/library.a" ];
+      };
+    }).native.drvPath
+  )).success;
+assert
+  !(force (
+    purifier.projectInputs {
+      dependencies = [ nativeDependency ];
+      formats = [ "native" ];
+      system = "x86_64-linux";
+    }
+  )).success;
 assert !(force (purifier.inputIdentity "/home/user/.m2/repository")).success;
 assert
   !(force (

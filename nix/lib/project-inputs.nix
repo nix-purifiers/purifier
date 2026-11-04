@@ -9,6 +9,7 @@ in
 {
   dependencies,
   formats,
+  system ? null,
 }:
 assert
   formats != [ ] || throw "purifier: a projection consumer must name at least one supported format";
@@ -24,6 +25,8 @@ map (
   in
   if available == [ ] then
     throw "purifier: a Nix dependency has no projection in a supported format (${builtins.concatStringsSep ", " formats})"
+  else if system != null && repository ? system && repository.system != system then
+    throw "purifier: native projection target ${repository.system} does not match consumer target ${system}"
   else
     {
       inherit

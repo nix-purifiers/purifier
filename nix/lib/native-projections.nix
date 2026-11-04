@@ -6,6 +6,9 @@
   producer,
   libraries,
   system,
+  includeDirectories ? [ ],
+  pkgConfigDirectories ? [ ],
+  targetMetadata ? { },
   runCommand,
   python3,
   name ? "native-projection",
@@ -17,7 +20,13 @@ let
       {
         nativeBuildInputs = [ python3 ];
         spec = builtins.toJSON {
-          inherit libraries system;
+          inherit
+            libraries
+            system
+            includeDirectories
+            pkgConfigDirectories
+            targetMetadata
+            ;
           producer = toString producer;
           producerIdentity = (inputIdentity producer).hash;
         };
