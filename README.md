@@ -437,8 +437,8 @@ fails evaluation.
 ### `wheels`
 
 ```nix
-wheels { pythonVersion, arch, glibcVersion } fileName
-wheels { pythonVersion, arch = "arm64", macosVersion } fileName
+wheels { pythonVersion, arch, glibcVersion, freeThreaded ? false } fileName
+wheels { pythonVersion, arch = "arm64", macosVersion, freeThreaded ? false } fileName
 ```
 
 Whether the Python wheel `fileName` installs with Python `pythonVersion`
@@ -454,10 +454,15 @@ tag for that version: `macosx_<N>_0` for `arm64` or `universal2` from 11
 up to it, or `universal2` for a macOS 10 release. It comes from
 uv-purifier.
 
+`freeThreaded = true` selects the version-specific free-threaded CPython ABI,
+such as `cp314-cp314t`, while retaining pure wheels. It excludes ordinary
+CPython extension wheels and `abi3`. This describes version-specific tags;
+it does not implement the separate `abi3t` stable ABI introduced in Python 3.15.
+
 ### `wheelName`
 
 ```nix
-wheelName { pythonVersion, arch, glibcVersion } lockedName
+wheelName { pythonVersion, arch, glibcVersion, freeThreaded ? false } lockedName
 ```
 
 The file name that a wheel gets when it is built for the given Python, CPU
@@ -467,6 +472,10 @@ A compiled wheel gets this Python's CPython tags. Its platform tag
 `linux_<cpu>` becomes `linux_<arch>`, and its platform tag
 `manylinux_2_<N>_<cpu>` becomes `manylinux_2_<glibc minor>_<arch>`. Any
 other platform tag fails evaluation. It comes from poetry-purifier.
+
+For a free-threaded target, the Python tag remains `cp314` and the extension
+ABI becomes `cp314t`. Retagging an `abi3` wheel for such a target fails rather
+than inventing a compatible stable ABI.
 
 ### Cross-type projections
 

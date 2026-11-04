@@ -126,6 +126,12 @@ let
     arch = "x86_64";
     glibcVersion = "2.40";
   };
+  freeThreadedTarget = {
+    pythonVersion = "3.14";
+    freeThreaded = true;
+    arch = "x86_64";
+    glibcVersion = "2.40";
+  };
 
   # The same Python on an arm64 Mac whose system supports macOS 14.0.
   installsOnMacos = purifier.wheels {
@@ -994,6 +1000,38 @@ let
         "fast-1.0-cp313-cp313-manylinux_2_40_aarch64.whl"
         "fast-1.0-cp311-abi3-linux_aarch64.whl"
       ];
+    };
+    testFreeThreadedWheels = {
+      expr = map (purifier.wheels freeThreadedTarget) [
+        "proof-1.0-cp314-cp314t-manylinux_2_38_x86_64.whl"
+        "proof-1.0-cp314-cp314-manylinux_2_38_x86_64.whl"
+        "proof-1.0-cp314-abi3-manylinux_2_38_x86_64.whl"
+        "proof-1.0-cp313-cp313t-manylinux_2_38_x86_64.whl"
+        "proof-1.0-py3-none-any.whl"
+      ];
+      expected = [
+        true
+        false
+        false
+        false
+        true
+      ];
+    };
+    testFreeThreadedWheelName = {
+      expr = map (purifier.wheelName freeThreadedTarget) [
+        "proof-1.0-cp313-cp313-linux_aarch64.whl"
+        "proof-1.0-cp313-cp313t-linux_aarch64.whl"
+        "proof-1.0-py3-none-any.whl"
+      ];
+      expected = [
+        "proof-1.0-cp314-cp314t-linux_x86_64.whl"
+        "proof-1.0-cp314-cp314t-linux_x86_64.whl"
+        "proof-1.0-py3-none-any.whl"
+      ];
+    };
+    testFreeThreadedStableAbiNamingRejected = {
+      expr = fails (purifier.wheelName freeThreadedTarget "proof-1.0-cp311-abi3-linux_x86_64.whl");
+      expected = true;
     };
     testWheelNameOtherPlatform = {
       expr = fails (wheelName "fast-1.0-cp314-cp314-macosx_14_0_arm64.whl");

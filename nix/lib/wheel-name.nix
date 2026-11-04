@@ -16,6 +16,7 @@
   lib,
   # The Python version, such as "3.14".
   pythonVersion,
+  freeThreaded ? false,
   # The CPU name in a wheel's platform tag, such as "x86_64" or "aarch64".
   arch,
   # The glibc version of the system, such as "2.40".
@@ -31,7 +32,13 @@ let
   platformTag = builtins.elemAt parts (count - 1);
 
   cpython = "cp${lib.replaceStrings [ "." ] [ "" ] pythonVersion}";
-  retag = tag: if builtins.match "cp3[0-9]+" tag != null then cpython else tag;
+  retag = tag: if builtins.match "cp3[0-9]+t?" tag != null then cpython else tag;
+  retagAbi =
+    tag:
+    if builtins.match "cp3[0-9]+t?" tag != null then
+      cpython + (if freeThreaded then "t" else "")
+    else
+      tag;
   glibcMinor = lib.elemAt (lib.splitString "." glibcVersion) 1;
 
   platform =
@@ -47,11 +54,14 @@ in
 if platformTag == "any" then
   lockedName
 else
+  assert
+    !(freeThreaded && abiTag == "abi3")
+    || throw "purifier: wheelName: abi3 is not the free-threaded extension ABI; supply a version-specific wheel";
   lib.concatStringsSep "-" (
     head
     ++ [
       (if abiTag == "abi3" then pythonTag else retag pythonTag)
-      (retag abiTag)
+      (retagAbi abiTag)
       platform
     ]
   )
