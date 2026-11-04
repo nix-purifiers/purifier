@@ -69,8 +69,8 @@ raise "missing Nix producer identity" if suffix.empty?
 # Hash the reachable native graph, so independent producers can share an
 # identical prepared dependency without coupling its version to unrelated roots.
 raise "Ruby SDK dependency is also supplied as an independent gem" if packages.any? { |_, spec, _| intrinsics.key?(spec.name) }
-by_name = packages.to_h { |archive, spec, provided| [spec.name, [archive, spec, provided]] }
-versions = packages.to_h do |archive, spec, provided|
+by_name = Hash[packages.map { |archive, spec, provided| [spec.name, [archive, spec, provided]] }]
+versions = Hash[packages.map do |archive, spec, provided|
   if provided
     [spec.name, spec.version.to_s]
   else
@@ -97,11 +97,11 @@ versions = packages.to_h do |archive, spec, provided|
       seed = item_provided ? item_provided.fetch("integrity") : specification.fetch("archiveIdentities", {}).fetch(item_archive, suffix)
       [name, item_spec.version.to_s, item_spec.platform.to_s, seed, item_spec.runtime_dependencies.map { |dependency| [dependency.name, dependency.requirement.to_s] }.sort]
     end
-    sdk_dependencies = reachable.values.filter_map { |_, value, provided| provided unless value }
+    sdk_dependencies = reachable.values.map { |_, value, provided| provided unless value }.select { |entry| entry }
     fingerprint = Digest::SHA256.hexdigest(JSON.dump([specification.fetch("projectorIdentity", "rubygems-v1"), graph, sdk_dependencies]))
     [spec.name, "#{spec.version}.1.nix.h#{fingerprint}"]
   end
-end
+end]
 
 intrinsics.each { |name, entry| versions[name] = entry.fetch("version") }
 entries = []

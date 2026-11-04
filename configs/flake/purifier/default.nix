@@ -41,6 +41,7 @@
           {
             checks = import ../../../tests {
               inherit pkgs;
+              historicalRubySource = inputs.historical-ruby;
               inherit (self.lib) purifier;
             };
             treefmt.programs.nixfmt.enable = true;
