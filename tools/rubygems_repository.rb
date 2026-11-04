@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Build a native RubyGems repository using the target SDK's own package codecs.
 require "rubygems/package"
+require File.expand_path("rubygems_codec.rb", File.dirname(__FILE__)) unless ENV["PURIFIER_RUBYGEMS_CODEC_PRELOADED"] == "1"
 require "json"
 require "fileutils"
 require "tmpdir"
@@ -29,7 +30,7 @@ specification.fetch("dependencies", []).each do |input|
   catalog.fetch("intrinsics", []).each { |entry| add_intrinsic(intrinsics, entry) }
   catalog.fetch("packages").each do |entry|
     archive = File.join(input.fetch("repository"), entry.fetch("archive"))
-    actual = "sha512-#{Base64.strict_encode64(Digest::SHA512.file(archive).digest)}"
+    actual = "sha512-#{Base64.encode64(Digest::SHA512.file(archive).digest).delete("\n")}"
     raise "RubyGems input archive integrity mismatch: #{archive}" unless actual == entry.fetch("integrity")
     gem_spec = Gem::Package.new(archive).spec
     unless [gem_spec.name, gem_spec.version.to_s, gem_spec.platform.to_s] == entry.values_at("name", "version", "platform")
@@ -38,7 +39,13 @@ specification.fetch("dependencies", []).each do |input|
     packages << [archive, gem_spec, entry]
   end
 end
-packages = packages.uniq { |archive, spec, _| [spec.name, spec.version, Digest::SHA512.file(archive).hexdigest] }
+seen_archives = {}
+packages = packages.reject do |archive, spec, _|
+  key = [spec.name, spec.version, Digest::SHA512.file(archive).hexdigest]
+  duplicate = seen_archives.key?(key)
+  seen_archives[key] = true
+  duplicate
+end
 if (roots = specification["roots"])
   candidates = packages.group_by { |_, spec, _| spec.name }
   selected = {}
@@ -59,10 +66,10 @@ if (roots = specification["roots"])
     end
   end
   roots.each { |name| visit.call(name) }
-  packages.select! { |_, spec, _| selected.key?(spec.name) }
-  intrinsics.select! { |name, _| selected.key?(name) }
+  packages.delete_if { |_, spec, _| !selected.key?(spec.name) }
+  intrinsics.delete_if { |name, _| !selected.key?(name) }
 end
-duplicates = packages.group_by { |_, spec| spec.name }.select { |_, values| values.size > 1 }
+duplicates = Hash[packages.group_by { |_, spec| spec.name }.select { |_, values| values.size > 1 }.to_a]
 raise "multiple gem versions need an explicit projection root: #{duplicates.keys.join(', ')}" unless duplicates.empty?
 suffix = specification.fetch("identity").gsub(/[^a-zA-Z0-9]/, "").downcase
 raise "missing Nix producer identity" if suffix.empty?
@@ -98,7 +105,7 @@ versions = Hash[packages.map do |archive, spec, provided|
       [name, item_spec.version.to_s, item_spec.platform.to_s, seed, item_spec.runtime_dependencies.map { |dependency| [dependency.name, dependency.requirement.to_s] }.sort]
     end
     sdk_dependencies = reachable.values.map { |_, value, provided| provided unless value }.select { |entry| entry }
-    fingerprint = Digest::SHA256.hexdigest(JSON.dump([specification.fetch("projectorIdentity", "rubygems-v1"), graph, sdk_dependencies]))
+    fingerprint = Digest::SHA256.hexdigest(PurifierRubyGemsCodec.json([specification.fetch("projectorIdentity", "rubygems-v1"), graph, sdk_dependencies]))
     [spec.name, "#{spec.version}.1.nix.h#{fingerprint}"]
   end
 end]
@@ -141,13 +148,14 @@ packages.each do |archive, original, provided|
     source_archive = provided ? archive : File.join(directory, filename)
     FileUtils.cp(source_archive, File.join(destination, "gems", filename))
     quick = File.join(destination, "quick", "Marshal.4.8", "#{spec.original_name}.gemspec.rz")
-    File.binwrite(quick, Zlib::Deflate.deflate(Marshal.dump(spec)))
+    File.open(quick, "wb") { |file| file.write(Zlib::Deflate.deflate(Marshal.dump(spec))) } unless ENV["PURIFIER_RUBYGEMS_SEPARATE_INDEX"] == "1"
     entries << { "name" => spec.name, "version" => spec.version.to_s,
                  "sourceVersion" => provided ? provided.fetch("sourceVersion") : original.version.to_s, "platform" => spec.platform.to_s,
-                 "integrity" => "sha512-#{Base64.strict_encode64(Digest::SHA512.file(source_archive).digest)}",
+                 "integrity" => "sha512-#{Base64.encode64(Digest::SHA512.file(source_archive).digest).delete("\n")}",
                  "archive" => "gems/#{filename}" }
   end
 end
+unless ENV["PURIFIER_RUBYGEMS_SEPARATE_INDEX"] == "1"
 specs = entries.map { |entry| [entry.fetch("name"), Gem::Version.new(entry.fetch("version")), entry.fetch("platform")] }.sort
 {
   "specs" => specs.reject { |_, version, _| version.prerelease? },
@@ -159,5 +167,6 @@ specs = entries.map { |entry| [entry.fetch("name"), Gem::Version.new(entry.fetch
     writer.write(Marshal.dump(values))
   end
 end
+end
 FileUtils.mkdir_p(File.dirname(catalog_path))
-File.write(catalog_path, JSON.pretty_generate({ "format" => "rubygems", "packages" => entries, "intrinsics" => intrinsics.values.sort_by { |entry| entry.fetch("name") } }) + "\n")
+File.open(catalog_path, "wb") { |file| file.write(PurifierRubyGemsCodec.json({ "format" => "rubygems", "packages" => entries, "intrinsics" => intrinsics.values.sort_by { |entry| entry.fetch("name") } }) + "\n") }

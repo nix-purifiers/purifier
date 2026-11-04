@@ -11,6 +11,7 @@ in
   intrinsics ? [ ],
   dependencies ? [ ],
   ruby,
+  indexRuby ? ruby,
   runCommand,
   name ? "rubygems-projection",
 }:
@@ -25,6 +26,9 @@ let
   }) selected;
   toolchain = runCommand "rubygems-projector-toolchain" {
     projector = ../../tools/rubygems_repository.rb;
+    codec = ../../tools/rubygems_codec.rb;
+    indexer = ../../tools/rubygems_index.rb;
+    indexRuntime = indexRuby;
     nativeBuildInputs = [ ruby ];
   } "touch $out";
   archiveIdentities = builtins.listToAttrs (
@@ -42,6 +46,9 @@ let
   identity = runCommand "${name}-identity" {
     producerIdentity = (inputIdentity producer).hash;
     projector = ../../tools/rubygems_repository.rb;
+    codec = ../../tools/rubygems_codec.rb;
+    indexer = ../../tools/rubygems_index.rb;
+    indexRuntime = indexRuby;
     nativeBuildInputs = [ ruby ];
     archives = builtins.toJSON archives;
     dependencies = builtins.toJSON repositories;
@@ -69,8 +76,10 @@ let
         passthru.catalog = "${projection.metadata}/catalog.json";
       }
       ''
-        ruby ${../../tools/rubygems_repository.rb} "$specPath" \
+        PURIFIER_RUBYGEMS_CODEC_PRELOADED=1 PURIFIER_RUBYGEMS_SEPARATE_INDEX=1 \
+          ${ruby}/bin/ruby -r ${../../tools/rubygems_codec.rb} ${../../tools/rubygems_repository.rb} "$specPath" \
           "$out" "$metadata/catalog.json"
+        ${indexRuby}/bin/ruby ${../../tools/rubygems_index.rb} "$out" "$metadata/catalog.json"
         mkdir -p "$out/nix-support"
         printf '%s\n' ${
           lib.escapeShellArgs (
