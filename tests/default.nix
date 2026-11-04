@@ -3,7 +3,11 @@
 # The checks: the tests that need no build (evaluation.nix), and builds
 # that fetch a real file, git checkout and archive and lay them out as a
 # tree.
-{ pkgs, purifier }:
+{
+  pkgs,
+  purifier,
+  historicalRubySource,
+}:
 let
   inherit (pkgs) lib runCommand;
 
@@ -414,6 +418,8 @@ in
         cp ${./rubygems/test_repository.rb} tests/rubygems/test_repository.rb
         export HOME=$TMPDIR
         ruby tests/rubygems/test_repository.rb
+        export RUBYGEMS_PROJECTOR=${../tools/rubygems_repository.rb}
+        ruby ${./rubygems/historical_repository.rb}
         touch $out
       '';
 
@@ -640,4 +646,18 @@ in
     test "$(cat "$t/files/note.txt")" = "laid out by purifier"
     touch "$out"
   '';
+}
+
+// lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
+  rubygems-ruby25 =
+    let
+      old = import historicalRubySource { system = "x86_64-linux"; };
+    in
+    pkgs.runCommand "purifier-rubygems-ruby25-tests" { } ''
+      export HOME=$TMPDIR
+      export EXPECTED_RUBY_VERSION=2.5.8
+      export RUBYGEMS_PROJECTOR=${../tools/rubygems_repository.rb}
+      ${old.ruby_2_5}/bin/ruby ${./rubygems/historical_repository.rb}
+      touch $out
+    '';
 }
