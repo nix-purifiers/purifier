@@ -466,6 +466,7 @@ in
       ''
         mkdir -p tools tests
         cp ${../tools/python_repository.py} tools/python_repository.py
+        cp ${../tools/python_target.py} tools/python_target.py
         cp -r ${./python} tests/python
         export HOME=$TMPDIR PIP_DISABLE_PIP_VERSION_CHECK=1
         python -B -m unittest discover -s tests/python -v
