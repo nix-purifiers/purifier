@@ -294,6 +294,15 @@ versions while retaining extras and markers. Wheel metadata directories, data
 directories and `RECORD` hashes are updated together. Unchanged foreign wheels
 retain their original bytes. Ordinary Python installers can consume the result.
 
+`python_repository.interpreter_tags(python)` queries the selected interpreter's
+standard-library runtime, ABI, pointer width and platform facts. A separate
+helper process applies its `packaging` tag algorithms to those facts, including
+the target's libc and manylinux policy. Helper packages are not imported into
+the target interpreter. The helper process also keeps this introspection context
+out of the caller's `packaging` state. This separation permits historical Python
+targets without substituting the helper's ABI; exact tested runtime tuples remain
+separate from broader compatibility claims.
+
 ### `jvmProjections`
 
 ```nix

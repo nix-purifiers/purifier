@@ -9,10 +9,10 @@ import hashlib
 import io
 import json
 import subprocess
+import sys
 from pathlib import Path
 import zipfile
 
-import packaging
 from packaging.requirements import Requirement
 from packaging.tags import sys_tags
 from packaging.utils import canonicalize_name, parse_wheel_filename
@@ -21,17 +21,11 @@ from packaging.version import Version
 
 def interpreter_tags(python):
     """Ask the target interpreter about its ABI without exposing SDK packages."""
-    script = """import importlib.util,json,sys
-root=sys.argv[1]
-spec=importlib.util.spec_from_file_location('packaging',root+'/__init__.py',submodule_search_locations=[root])
-module=importlib.util.module_from_spec(spec)
-sys.modules['packaging']=module
-spec.loader.exec_module(module)
-from packaging.tags import sys_tags
-print(json.dumps([str(tag) for tag in sys_tags()]))
-"""
-    return json.loads(subprocess.check_output([str(python), '-I', '-c', script,
-        str(Path(packaging.__file__).parent)], text=True))
+    from python_target import PROBE
+    tools = Path(__file__).resolve().parent
+    facts = subprocess.check_output([str(python), '-E', '-s', '-c', PROBE], cwd=tools, text=True)
+    return json.loads(subprocess.check_output(
+        [sys.executable, '-I', str(tools / 'python_target.py')], input=facts, text=True))
 
 
 def selections(views, compatible_tags=None):
