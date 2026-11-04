@@ -7,6 +7,7 @@
   lockedProjectInputs = import ./locked-project-inputs.nix { inherit lib; };
   projectInputsTool = ../../tools;
   testFixtures.nativePythonComposition = ../../tests/python/native_composition.py;
+  testFixtures.jsonConsumer = ../../tests/json-consumer.nix;
   rubygemsProjections = import ./rubygems-projections.nix { inherit lib; };
   npmProjections = import ./npm-projections.nix { inherit lib; };
   npmRepositoryTool = ../../tools/npm_repository.py;
@@ -18,6 +19,8 @@
   jvmProjections = import ./jvm-projections.nix { inherit lib; };
   webjarProjections = import ./webjar-projections.nix { inherit lib; };
   nativeProjections = import ./native-projections.nix { inherit lib; };
+  nativeTargetProjections = import ./native-target-projections.nix { inherit lib; };
+  dataProjections = import ./data-projections.nix { inherit lib; };
   coursierInputsTool = ../../tools;
   clojureRewriteTool = ../../tools/rewrite_clojure.clj;
   jvmRepositoryTool = ../../tools/jvm_repository.py;
