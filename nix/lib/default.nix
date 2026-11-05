@@ -26,6 +26,7 @@
   coursierInputsTool = ../../tools;
   clojureRewriteTool = ../../tools/rewrite_clojure.clj;
   jvmRepositoryTool = ../../tools/jvm_repository.py;
+  sourceInput = import ./source-input.nix { inherit lib; };
   inputIdentity = import ./input-identity.nix { inherit lib; };
   projectInputs = import ./project-inputs.nix { inherit lib; };
   fetchEntry = import ./fetch.nix { inherit lib; };
