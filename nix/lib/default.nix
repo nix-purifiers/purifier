@@ -21,6 +21,7 @@
   webjarProjections = import ./webjar-projections.nix { inherit lib; };
   nativeProjections = import ./native-projections.nix { inherit lib; };
   nativeTargetProjections = import ./native-target-projections.nix { inherit lib; };
+  wasmProjections = import ./wasm-projections.nix { inherit lib; };
   resourceProjections = import ./resource-projections.nix { inherit lib; };
   dataProjections = import ./data-projections.nix { inherit lib; };
   coursierInputsTool = ../../tools;
