@@ -241,8 +241,8 @@ Both source and object closure must carry Nix store/derivation references.
 | `refs` | Selected full `refs/heads/`, `refs/tags/`, or `refs/remotes/` names mapped to exact object IDs. Annotated tags name their tag objects. |
 | `shallow` | Commit IDs at history boundaries; `[]` declares no shallow boundaries, not permission to omit reachable objects. |
 | `objects` | Immutable Nix reference to the captured object closure, including objects retained only by selected refs and non-gitlink index entries. |
-| `index` | Records `{ path, mode, oid, stage }`, including executable/symlink/gitlink modes and merge stages. No filesystem stat cache. |
-| `remotes` | Names mapped to `{ url, defaultRef }`. URLs are repository identities, without credentials; `defaultRef` is a full local branch ref or explicitly unknown (`null`). |
+| `index` | Records `{ path, mode, oid, stage, flags }`. `flags` explicitly contains boolean `assumeUnchanged`, `skipWorktree`, and `intentToAdd`; these affect native dirty-state behavior. Includes executable/symlink/gitlink modes and merge stages, without a filesystem stat cache. |
+| `remotes` | Names mapped to `{ url, defaultRef }`. URLs are repository identities, without credentials (HTTP userinfo, password userinfo, query strings and fragments are rejected); `defaultRef` is a full local branch ref or explicitly unknown (`null`). |
 
 The source tree and index are distinct inputs: do not construct an index by
 adding every source file, or replace real commits with synthetic ones. Dirty,
@@ -259,6 +259,13 @@ incidental storage without dropping selected refs or their objects, and retain
 history needed by versioning tools. Remote commands must use explicitly
 captured local data; keeping a URL does not authorize a live remote query.
 Missing required history or facts must fail rather than yield a guessed version.
+Native equivalence also depends on Git configuration, tracking configuration,
+`info/exclude`, attributes, filters, sparse-checkout and other repository state.
+These are not represented by this initial schema: capture adapters must reject
+unsupported effects and replay under an explicit controlled configuration,
+rather than silently discard them. Paths containing credentials or authentication
+configuration must never be captured; URL checks do not replace capture-side
+sanitization. No arbitrary Git-checkout equivalence is claimed.
 This initial model requires an existing HEAD commit; unborn repositories need
 a separate explicit representation. Gitlink entries retain external commit IDs;
 submodule source/state capture is separate.
