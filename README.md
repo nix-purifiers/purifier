@@ -563,14 +563,7 @@ and ABI. The native integration check compiles one library and calls it from
 both Python ctypes and Java JNI; the WebJar check reads an asset from a real
 Java classpath.
 
-## Credits
-
-The purifier idea was inspired by nixcloud's
-[cargo (libnix)](https://github.com/nixcloud/cargo).
-
-## License
-
-MIT; see [LICENSE](LICENSE).
+#### `resourceProjections`
 
 `resourceProjections` makes explicitly selected built outputs usable as a
 static document root, a Java resource JAR, or a schema compiler import tree:
@@ -609,3 +602,13 @@ schema bytes through ordinary Python HTTP. It also verifies that missing imports
 fail. Other schema formats can use the same resource mechanism, but require
 their own native compiler and runtime proof. Generated language packages remain
 separate outputs with their own package manifests and runtime dependencies.
+
+## Credits
+
+The purifier idea was inspired by nixcloud's
+[cargo (libnix)](https://github.com/nixcloud/cargo).
+
+## License
+
+MIT; see [LICENSE](LICENSE).
+
