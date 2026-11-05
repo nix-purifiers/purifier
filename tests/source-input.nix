@@ -65,6 +65,63 @@ let
       expected = true;
     };
 
+    testStageZeroWithMergeStageRejected = {
+      expr =
+        builtins.all
+          (
+            stage:
+            fails (make {
+              index = git.index ++ [
+                ((builtins.head git.index) // { inherit stage; })
+              ];
+            })
+          )
+          [
+            1
+            2
+            3
+          ];
+      expected = true;
+    };
+    testMergeStagesCoexist = {
+      expr =
+        map (entry: entry.stage)
+          (make {
+            index = map (stage: (builtins.head git.index) // { inherit stage; }) [
+              3
+              1
+              2
+            ];
+          }).sourceState.git.index;
+      expected = [
+        1
+        2
+        3
+      ];
+    };
+    testUnsafeIndexPathsRejected = {
+      expr =
+        builtins.all
+          (
+            path:
+            fails (make {
+              index = [
+                ((builtins.head git.index) // { inherit path; })
+              ];
+            })
+          )
+          [
+            ".git"
+            ".git/config"
+            "a/.git/config"
+            "a/.GIT/config"
+            "a\nb"
+            "a\rb"
+            "a\tb"
+            (builtins.fromJSON ''"a\u0001b"'')
+          ];
+      expected = true;
+    };
     testIndexFlagsChangeIdentity = {
       expr =
         builtins.all
@@ -125,6 +182,8 @@ let
           [
             "https://user:secret@example.org/repo.git"
             "https://token@example.org/repo.git"
+            "HTTP://token@example.org/repo.git"
+            "HtTpS://token@example.org/repo.git"
             "https://example.org/repo.git?token=secret"
             "https://example.org/repo.git#secret"
             "ssh://user:secret@example.org/repo.git"

@@ -10,7 +10,10 @@ let
     value:
     builtins.isString value
     && value != ""
-    && lib.all (part: part != "" && part != "." && part != "..") (lib.splitString "/" value);
+    && builtins.match ".*[[:cntrl:]].*" value == null
+    && lib.all (part: part != "" && part != "." && part != ".." && lib.toLower part != ".git") (
+      lib.splitString "/" value
+    );
   ref =
     value:
     builtins.isString value
@@ -73,6 +76,7 @@ let
             3
           ];
         keys = map (item: "${item.path}:${toString item.stage}") git.index;
+        byPath = lib.groupBy (item: item.path) git.index;
         objectIdentity = inputIdentity git.objects;
       in
       let
@@ -114,6 +118,9 @@ let
             && lib.all indexed git.index
             && builtins.length keys == builtins.length (lib.unique keys)
           ) "index must contain unique path/stage entries with exact modes and object IDs")
+          (check (lib.all (items: !(lib.any (item: item.stage == 0) items) || builtins.length items == 1) (
+            builtins.attrValues byPath
+          )) "index stage 0 cannot coexist with merge stages for the same path")
           (check (
             builtins.isAttrs git.remotes
             && lib.all (name: ref ("refs/remotes/" + name + "/HEAD")) (builtins.attrNames git.remotes)
@@ -122,7 +129,7 @@ let
               exact [ "url" "defaultRef" ] remote
               && builtins.isString remote.url
               && remote.url != ""
-              && builtins.match "https?://[^/]*@.*" remote.url == null
+              && builtins.match "https?://[^/]*@.*" (lib.toLower remote.url) == null
               && builtins.match ".*://[^/]*:[^/@]+@.*" remote.url == null
               && !(lib.hasInfix "?" remote.url)
               && !(lib.hasInfix "#" remote.url)
