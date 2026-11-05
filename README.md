@@ -250,6 +250,11 @@ staged, deleted and untracked contents must remain distinguishable. The model
 does not assert that the working tree is clean, infer a default branch, or
 invent a fallback version. It canonicalizes index/boundary list order, while
 preserving real object IDs and selected refs. Unknown fields are rejected.
+Stage zero cannot coexist with merge stages for a path; merge stages 1–3 may
+coexist. This model restricts index paths to canonical relative paths without
+control characters or `.git` components (case-insensitive); Nix rejects NUL
+strings before model validation. This is a deliberately restricted path subset,
+not support for every filename Git can represent.
 
 This API validates the model, not the contents of an object export. Capture and
 replay adapters must verify object hashes/types/reachability, source/index
