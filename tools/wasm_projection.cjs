@@ -21,7 +21,7 @@ function validate(spec, root) {
   const resources = JSON.parse(fs.readFileSync(path.join(root, 'catalog.json')));
   const catalog = {
     format: 'purifier-core-wasm-v1', producerIdentity: resources.producerIdentity,
-    validator: process.version, modules: {},
+    validator: process.version, modules: Object.create(null),
   };
   for (const [logical, selected] of Object.entries(spec).sort()) {
     if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(logical) || logical.includes('..')) {
