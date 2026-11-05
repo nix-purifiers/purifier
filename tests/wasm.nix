@@ -3,6 +3,7 @@
 let
   producer = pkgs.runCommand "core-wasm-fixture" { nativeBuildInputs = [ pkgs.wabt ]; } ''
     mkdir -p "$out/lib"
+    echo private > "$out/private.txt"
     cat > proof.wat <<'WAT'
     (module
       (import "provider" "base" (func $base (result i32)))
@@ -51,8 +52,21 @@ in
         assert.deepEqual(catalog.modules.proof.exports, [{ name: 'answer', kind: 'function' }]);
         assert.throws(() => validate({proof: {path: 'lib/proof.wasm', imports: []}}, '${projected.resources}'), /contract mismatch/);
         assert.throws(() => validate({proof: {path: 'lib/proof.wasm'}}, '${projected.resources}'), /explicit imports/);
-        const { Module } = WebAssembly;
-        assert.throws(() => new Module(Buffer.from('not a Wasm module')));
+        const os = require('node:os');
+        const path = require('node:path');
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'wasm-validation-'));
+        fs.mkdirSync(path.join(root, 'files'));
+        fs.copyFileSync('${projected.resources}/catalog.json', path.join(root, 'catalog.json'));
+        fs.writeFileSync(path.join(root, 'files/proof.wasm'), fs.readFileSync('${projected.wasm.modules.proof}'));
+        const spec = {proof: {path: 'lib/proof.wasm', imports: [{module: 'provider', name: 'base', kind: 'function'}]}};
+        validate(spec, root);
+        const first = fs.readFileSync(path.join(root, 'wasm.json'));
+        validate(spec, root);
+        assert.deepEqual(fs.readFileSync(path.join(root, 'wasm.json')), first);
+        assert.deepEqual(fs.readdirSync('${projected.resources}/files'), ['proof.wasm']);
+        assert.throws(() => validate({proof: {path: 'lib/proof.wasm', imports: [{module: 'provider', name: 'base', kind: 'memory'}]}}, root), /contract mismatch/);
+        fs.writeFileSync(path.join(root, 'files/proof.wasm'), 'not a Wasm module');
+        assert.throws(() => validate(spec, root), WebAssembly.CompileError);
         JS
         touch $out
       '';
