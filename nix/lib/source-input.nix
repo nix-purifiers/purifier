@@ -55,7 +55,9 @@ let
             != null;
         indexed =
           item:
-          exact [ "path" "mode" "oid" "stage" ] item
+          exact [ "path" "mode" "oid" "stage" "flags" ] item
+          && exact [ "assumeUnchanged" "skipWorktree" "intentToAdd" ] item.flags
+          && lib.all builtins.isBool (builtins.attrValues item.flags)
           && relative item.path
           && oid item.oid
           && builtins.elem item.mode [
@@ -120,6 +122,10 @@ let
               exact [ "url" "defaultRef" ] remote
               && builtins.isString remote.url
               && remote.url != ""
+              && builtins.match "https?://[^/]*@.*" remote.url == null
+              && builtins.match ".*://[^/]*:[^/@]+@.*" remote.url == null
+              && !(lib.hasInfix "?" remote.url)
+              && !(lib.hasInfix "#" remote.url)
               && builtins.match ".*[[:cntrl:]].*" remote.url == null
               && (
                 remote.defaultRef == null

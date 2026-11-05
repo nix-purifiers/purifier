@@ -21,6 +21,11 @@ let
         mode = "100644";
         oid = other;
         stage = 0;
+        flags = {
+          assumeUnchanged = false;
+          skipWorktree = false;
+          intentToAdd = false;
+        };
       }
     ];
     remotes.origin = {
@@ -60,6 +65,81 @@ let
       expected = true;
     };
 
+    testIndexFlagsChangeIdentity = {
+      expr =
+        builtins.all
+          (
+            flag:
+            (make {
+              index = [
+                (
+                  (builtins.head git.index)
+                  // {
+                    flags = (builtins.head git.index).flags // {
+                      ${flag} = true;
+                    };
+                  }
+                )
+              ];
+            }).identity != original.identity
+          )
+          [
+            "assumeUnchanged"
+            "skipWorktree"
+            "intentToAdd"
+          ];
+      expected = true;
+    };
+    testMissingIndexFlagsRejected = {
+      expr = fails (make {
+        index = [ (removeAttrs (builtins.head git.index) [ "flags" ]) ];
+      });
+      expected = true;
+    };
+    testNonBooleanFlagRejected = {
+      expr = fails (make {
+        index = [
+          (
+            (builtins.head git.index)
+            // {
+              flags = (builtins.head git.index).flags // {
+                skipWorktree = "false";
+              };
+            }
+          )
+        ];
+      });
+      expected = true;
+    };
+    testCredentialBearingRemotesRejected = {
+      expr =
+        builtins.all
+          (
+            url:
+            fails (make {
+              remotes.origin = git.remotes.origin // {
+                inherit url;
+              };
+            })
+          )
+          [
+            "https://user:secret@example.org/repo.git"
+            "https://token@example.org/repo.git"
+            "https://example.org/repo.git?token=secret"
+            "https://example.org/repo.git#secret"
+            "ssh://user:secret@example.org/repo.git"
+          ];
+      expected = true;
+    };
+    testSshUserIsAnIdentity = {
+      expr =
+        (make {
+          remotes.origin = git.remotes.origin // {
+            url = "ssh://git@example.org/repo.git";
+          };
+        }).sourceState.git.remotes.origin.url;
+      expected = "ssh://git@example.org/repo.git";
+    };
     testPlainSource = {
       expr = (purifier.sourceInput { inherit src; }).sourceState.git;
       expected = null;
