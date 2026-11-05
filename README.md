@@ -678,6 +678,42 @@ fail. Other schema formats can use the same resource mechanism, but require
 their own native compiler and runtime proof. Generated language packages remain
 separate outputs with their own package manifests and runtime dependencies.
 
+#### `wasmProjections`
+
+`wasmProjections` validates explicitly selected **core WebAssembly modules** and
+projects their bytes for native Wasm runtimes, HTTP serving and Java resources:
+
+```nix
+projections = purifier.wasmProjections {
+  producer = project;
+  modules.proof = {
+    path = "lib/proof.wasm";
+    imports = [ { module = "provider"; name = "base"; kind = "function"; } ];
+  };
+  inherit (pkgs) runCommand python3 nodejs;
+};
+```
+
+Every module needs a relative producer path and an explicit import list
+(including `[]` for no imports). The selected pinned Node engine validates the
+binary, and its actual import names/kinds must match that list. Invalid binaries,
+undeclared/missing imports and invalid resource selections fail publication.
+Logical names become `<name>.wasm` inside the public resource tree.
+
+`projections.wasm.modules.<name>` is the module path; `wasm.catalog` records
+byte digests, producer identity, validator version, imports and exports.
+`resources`, `web`, and `java-resources` expose the usual `.directory`,
+`.documentRoot`, `.classPath` and resource `.catalog`. Serve the public directory,
+which excludes projection metadata. The consumer checks instantiate a compiled
+module with a real host function, call its export, reject missing/invalid host
+imports, and read the same bytes through ordinary HTTP and Java resources.
+
+This validates the core module and import names/kinds for the pinned validator;
+it does not infer function signatures or provide host implementations. It does
+not claim browser execution, cross-engine feature compatibility, WASI runtime
+support, component/WIT support, generated JS bindings or an npm publication.
+Producer compiler/target settings remain native inputs to the producer.
+
 ## Credits
 
 The purifier idea was inspired by nixcloud's
