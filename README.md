@@ -202,6 +202,69 @@ The result exposes `provenance`, an attribute set mapping each entry path
 to its fetched Nix source. This preserves per-entry provenance when `link`
 is false as well as when it is true. It adds no files to the tree.
 
+### `sourceInput`
+
+`sourceInput { src, git ? null }` pairs an immutable Nix source reference with
+explicit Git state. This is source state, not a download entry or a dependency
+lock extension. A commit, branch switch, tag change or working-tree edit must
+not require relocking dependencies. Capture the relevant state when preparing
+the source input; fetching or refreshing remote facts is an explicit operation.
+
+For an adapter that has already captured the state as `capturedGit`:
+
+```nix
+let
+  input = purifier.sourceInput { inherit src; git = capturedGit; };
+in runCommand "git-sensitive-build" {
+  src = input.src;
+  sourceState = builtins.toJSON input.sourceState;
+  passAsFile = [ "sourceState" ];
+} ''
+  # The adapter validates and replays $sourceStatePath before invoking Git.
+  adapter-build "$src" "$sourceStatePath" "$out"
+''
+```
+
+The result has `src`, `sourceState`, and a comparison `identity`. Builders must
+consume both `src` and `sourceState`: serializing `sourceState` into a derivation
+retains its source/object Nix references and changes the derivation when the
+state changes. Passing only `src` or the comparison digest loses that guarantee.
+The constructor does no builds, network access, or reading of ambient `.git`.
+Both source and object closure must carry Nix store/derivation references.
+
+`git = null` declares no Git state. Otherwise every field below is explicit:
+
+| Field | Meaning |
+| --- | --- |
+| `objectFormat` | `sha1` or `sha256`; all object IDs are full lowercase IDs. |
+| `head` | `{ oid, ref }`; `ref = null` means detached HEAD. A branch HEAD must match its entry in `refs`. |
+| `refs` | Selected full `refs/heads/`, `refs/tags/`, or `refs/remotes/` names mapped to exact object IDs. Annotated tags name their tag objects. |
+| `shallow` | Commit IDs at history boundaries; `[]` declares no shallow boundaries, not permission to omit reachable objects. |
+| `objects` | Immutable Nix reference to the captured object closure, including objects retained only by selected refs and non-gitlink index entries. |
+| `index` | Records `{ path, mode, oid, stage }`, including executable/symlink/gitlink modes and merge stages. No filesystem stat cache. |
+| `remotes` | Names mapped to `{ url, defaultRef }`. URLs are repository identities, without credentials; `defaultRef` is a full local branch ref or explicitly unknown (`null`). |
+
+The source tree and index are distinct inputs: do not construct an index by
+adding every source file, or replace real commits with synthetic ones. Dirty,
+staged, deleted and untracked contents must remain distinguishable. The model
+does not assert that the working tree is clean, infer a default branch, or
+invent a fallback version. It canonicalizes index/boundary list order, while
+preserving real object IDs and selected refs. Unknown fields are rejected.
+
+This API validates the model, not the contents of an object export. Capture and
+replay adapters must verify object hashes/types/reachability, source/index
+binding, shallow boundaries and native Git behavior before using it. A raw
+fetched `.git` directory is not a canonical object-export format. Normalize
+incidental storage without dropping selected refs or their objects, and retain
+history needed by versioning tools. Remote commands must use explicitly
+captured local data; keeping a URL does not authorize a live remote query.
+Missing required history or facts must fail rather than yield a guessed version.
+This initial model requires an existing HEAD commit; unborn repositories need
+a separate explicit representation. Gitlink entries retain external commit IDs;
+submodule source/state capture is separate.
+No automatic builder integration, capture CLI, repository reconstruction or
+`template-oss`/auto-versioning support is claimed by this model-only API.
+
 ### `inputIdentity` and `projectInputs`
 
 `inputIdentity input` returns the input's Nix string `context` and a SHA-256

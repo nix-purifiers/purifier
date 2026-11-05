@@ -47,6 +47,23 @@ An existing invalid or stale lock is an error, rather than an excuse to
 silently switch to impure resolution. Explicit dependency-update commands
 and documented opt-out settings may deliberately use the network.
 
+## Source state
+
+Git-dependent build behavior belongs to the source input, not to the dependency
+lock. Changing commits, branches, tags or working-tree contents must not require
+a dependency relock. A sandboxed builder that needs Git state consumes an
+explicit source-state snapshot alongside the source tree; both participate in
+its Nix build identity. The shared `sourceInput` model describes this pairing.
+
+Capture only the selected refs, objects and index/remote facts needed by the
+native behavior, with explicit history boundaries. Preserve object identities
+and working-tree/index differences. Capture or refresh live remote facts
+explicitly; replay must use captured inputs without contacting the remote.
+Validate native behavior, including version and publication metadata, against
+the original checkout. Missing required state is an error, not permission to
+fabricate history, assume a clean tree, skip a check or invent a version.
+The shared model alone does not implement capture/replay or enable a builder.
+
 ## The builder
 
 A purifier's flake exports `overlays.default`, which adds one attribute to
