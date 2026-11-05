@@ -23,6 +23,16 @@ let
         }
       ];
     };
+    modules."__proto__" = {
+      path = "lib/proof.wasm";
+      imports = [
+        {
+          module = "provider";
+          name = "base";
+          kind = "function";
+        }
+      ];
+    };
     inherit (pkgs) runCommand python3 nodejs;
   };
 in
@@ -63,8 +73,22 @@ in
         const first = fs.readFileSync(path.join(root, 'wasm.json'));
         validate(spec, root);
         assert.deepEqual(fs.readFileSync(path.join(root, 'wasm.json')), first);
-        assert.deepEqual(fs.readdirSync('${projected.resources}/files'), ['proof.wasm']);
+        assert.deepEqual(fs.readdirSync('${projected.resources}/files').sort(), ['__proto__.wasm', 'proof.wasm']);
         assert.throws(() => validate({proof: {path: 'lib/proof.wasm', imports: [{module: 'provider', name: 'base', kind: 'memory'}]}}, root), /contract mismatch/);
+        const reservedSpec = JSON.parse('{"__proto__":{"path":"lib/proof.wasm","imports":[{"module":"provider","name":"base","kind":"function"}]}}');
+        fs.writeFileSync(path.join(root, 'files/__proto__.wasm'), fs.readFileSync('${
+          projected.wasm.modules."__proto__"
+        }'));
+        validate(reservedSpec, root);
+        const reserved = JSON.parse(fs.readFileSync(path.join(root, 'wasm.json')));
+        assert.ok(Object.hasOwn(reserved.modules, '__proto__'));
+        assert.equal(reserved.modules.__proto__.file, '__proto__.wasm');
+        assert.equal(reserved.modules.__proto__.sha256, catalog.modules.proof.sha256);
+        assert.deepEqual(reserved.modules.__proto__.exports, [{name: 'answer', kind: 'function'}]);
+        const published = JSON.parse(fs.readFileSync('${projected.wasm.catalog}'));
+        assert.ok(Object.hasOwn(published.modules, '__proto__'));
+        assert.equal(published.modules.__proto__.file, '__proto__.wasm');
+        assert.equal(published.modules.__proto__.sha256, catalog.modules.proof.sha256);
         fs.writeFileSync(path.join(root, 'files/proof.wasm'), 'not a Wasm module');
         assert.throws(() => validate(spec, root), WebAssembly.CompileError);
         JS
