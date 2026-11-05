@@ -183,6 +183,7 @@ let
       '';
 in
 (import ./cross-type.nix { inherit pkgs purifier; })
+// (import ./resources.nix { inherit pkgs purifier; })
 // {
   cross-type-unit =
     runCommand "purifier-cross-type-unit"

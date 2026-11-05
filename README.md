@@ -571,3 +571,41 @@ The purifier idea was inspired by nixcloud's
 ## License
 
 MIT; see [LICENSE](LICENSE).
+
+`resourceProjections` makes explicitly selected built outputs usable as a
+static document root, a Java resource JAR, or a schema compiler import tree:
+
+```nix
+projections = purifier.resourceProjections {
+  producer = project;
+  roots = { "schemas" = "share/schemas"; "manual.pdf" = "share/manual.pdf"; };
+  dependencies = [ commonSchemas.projections.resources ];
+  schema = { format = "thrift"; entrypoints = [ "schemas/service.thrift" ]; };
+  inherit (pkgs) runCommand python3;
+};
+```
+
+`roots` maps destination paths to relative paths inside the producer output;
+`.` explicitly selects a directory root. Only selected files enter the bundle.
+Resource dependencies contribute their public files at their existing paths;
+collisions, traversal, escaping symlinks and empty selections fail. Symlinks to
+directories inside a selection are rejected rather than followed recursively.
+
+The `resources`, `web`, and `java-resources` attributes reference the same
+bundle. Use `.directory` or `.documentRoot` as the public directory, `.classPath`
+as the deterministic JAR, and `.catalog` for paths, byte digests, producer and
+dependency identities. The bundle root also contains metadata: serve only
+`documentRoot`. No MIME types or browser execution capability are inferred.
+Java resource paths retain their selected layout rather than adopting the
+WebJar prefix. This is a direct classpath JAR, not a Maven publication.
+
+Optional `schema` records the native format and entrypoints. Callers must supply
+the full import/include closure through selected roots and resource dependencies;
+entrypoint existence is checked, but the adapter does not parse schemas or
+claim compiler validation. The consumer check compiles imported Protobuf and
+Thrift schemas with ordinary `protoc` and `thrift`, runs their generated Python
+messages with matching runtime packages, loads schemas through Java, and serves
+schema bytes through ordinary Python HTTP. It also verifies that missing imports
+fail. Other schema formats can use the same resource mechanism, but require
+their own native compiler and runtime proof. Generated language packages remain
+separate outputs with their own package manifests and runtime dependencies.
