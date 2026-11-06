@@ -36,6 +36,18 @@ let
     };
   };
   pinnedAdapters = import ../../nix/lib/jvm-sdk-adapters.nix { inherit pkgs; };
+  invalidPaths = [
+    "${sdk}/../../outside"
+    "${home}/./nested"
+    "${home}//nested"
+    "${home}/trailing/"
+    "${home}/bad\tname"
+    "${home}/bad\nname"
+    "${home}/bad\rname"
+    (home + "/bad" + builtins.fromJSON ''"\u0001"'' + "name")
+    (home + "/bad" + builtins.fromJSON ''"\u007f"'' + "name")
+    (builtins.appendContext "/nix/store/not-a-valid-root/home" (builtins.getContext home))
+  ];
   tests = {
     testDistinctOutputRetainsHomeContext = {
       expr =
@@ -69,6 +81,23 @@ let
     testRejectCrossSystemSdk = {
       expr = accepts { system = "unsupported-target"; };
       expected = false;
+    };
+    testRejectNoncanonicalSdkAndManagerPaths = {
+      expr = pkgs.lib.all (
+        path:
+        !accepts { home = path; }
+        && !accepts {
+          manager = manager // {
+            executable = path;
+          };
+        }
+        && !accepts {
+          manager = manager // {
+            runtimeHome = path;
+          };
+        }
+      ) invalidPaths;
+      expected = true;
     };
     testPinnedProviderRuntimeMappings = {
       expr =

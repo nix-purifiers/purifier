@@ -10,6 +10,15 @@
 }:
 let
   problem = message: throw "purifier: JVM SDK ${message}";
+  lexicalStorePath =
+    value:
+    let
+      parts = lib.splitString "/" (lib.removePrefix "${builtins.storeDir}/" value);
+    in
+    builtins.match ".*[[:cntrl:]].*" value == null
+    && lib.all (part: part != "" && part != "." && part != "..") parts
+    &&
+      builtins.match "[0-9abcdfghijklmnpqrsvwxyz]{32}-[A-Za-z0-9+._?=-]+" (builtins.head parts) != null;
   contextualPath =
     name: value:
     if
@@ -18,8 +27,12 @@ let
       || builtins.getContext value == { }
     then
       problem "${name} must carry a Nix store reference"
+    else if !lexicalStorePath value then
+      problem "${name} must have a canonical lexical store path"
     else
       value;
+  # Lexical validation cannot establish symlink canonicality. Consumers
+  # must still compare native canonical paths and actual executable origin.
   output = contextualPath "output" (toString sdk);
   sdkHome = contextualPath "home" home;
   payload = {

@@ -303,6 +303,9 @@ a derivation and its context-bearing SDK home. An optional manager declares
 output and home contexts; the versioned manager hash includes the SDK identity,
 executable, runtime home and both corresponding contexts. `closureInputs`
 retains the live Nix values. Existing `inputIdentity` hashes keep their meaning.
+Paths require a valid lexical store root, no empty/dot/dotdot segments and no
+control bytes. This syntactic check does not establish symlink canonicality;
+consumers must also validate the actual native canonical paths and origins.
 
 `jvmSdkAdapter { sdk; system; home ? sdk.home; executable; runtimeHome; }`
 constructs a provider record with `sdk`, `home` and `manager`. Providers must
