@@ -55,7 +55,7 @@ try:
         shutil.copy2(graph_file, snapshot / graph_file.name)
         cases = []
         names = ["no-inputs", "root-follows", "diamond", "flake-false", "nested-override",
-                 "stale-name", "revision", "follows-redirect", "nested-follows-redirect",
+                 "stale-name", "revision", "selector", "follows-redirect", "nested-follows-redirect",
                  "additional-input", "missing-node", "unreachable-node", "absent-lock"]
         for name in names:
             path = temporary / name
@@ -85,6 +85,8 @@ try:
             elif name == "revision":
                 # The current selector must reject this before fetching it.
                 definition = definition.replace(sdk_source["rev"], "0" * 40)
+            elif name == "selector":
+                definition = definition.replace(sdk_source["owner"], sdk_source["owner"].swapcase())
             elif name == "follows-redirect":
                 definition = definition.replace('c.follows="a"', 'c.follows="b"')
             elif name == "nested-follows-redirect":
