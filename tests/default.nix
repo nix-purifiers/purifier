@@ -511,6 +511,7 @@ in
       '';
   projections = import ./projections.nix { inherit pkgs purifier; };
   evaluation = import ./evaluation.nix { inherit pkgs purifier; };
+  jvm-sdk-identities = import ./jvm/sdk-identities.nix { inherit pkgs purifier; };
 
   fetch-file = runCommand "purifier-test-fetch-file" { } ''
     grep -q "Hello World" ${purifier.fetchEntry { inherit pkgs; } file}

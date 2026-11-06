@@ -295,6 +295,57 @@ one producer retain the same producer identity.
 These primitives support format adapters; they do not themselves override
 native version resolution or rewrite publication metadata.
 
+### JVM SDK sources and adapters
+
+`jvmSdkIdentity { sdk; system; home ? sdk.home; manager ? null; }` identifies
+a derivation and its context-bearing SDK home. An optional manager declares
+`executable` and `runtimeHome` separately. The versioned SDK hash includes
+output and home contexts; the versioned manager hash includes the SDK identity,
+executable, runtime home and both corresponding contexts. `closureInputs`
+retains the live Nix values. Existing `inputIdentity` hashes keep their meaning.
+
+`jvmSdkAdapter { sdk; system; home ? sdk.home; executable; runtimeHome; }`
+constructs a provider record with `sdk`, `home` and `manager`. Providers must
+declare their runtime layout explicitly. For example, the tested OpenJDK 8
+manager executes `SDK_HOME/bin/java` but reports `SDK_HOME/jre` as `java.home`.
+Other SDKs must not inherit that mapping by inference.
+
+The flake exports convenience records at
+`lib.jvmSdkAdapters.x86_64-linux.openjdk8`, `openjdk11` and `openjdk17`, using
+its own pinned nixpkgs. These are library records, not `packages` derivations.
+They describe those exact pinned SDKs and their measured runtime layouts;
+they do not establish native build-tool, test-worker or version-range support.
+
+`jvmSdkResolve { selection; system; }` resolves an immutable external flake
+attribute. A selection has exactly `id`, `source`, `selectionKind` and
+`attribute`. `selectionKind` is either `derivation-v1` (a derivation supplying
+a context-bearing `home`) or `jvm-sdk-adapter-v1` (the explicit provider record).
+`attribute` is a nonempty list of attribute names. `source` has exactly
+`type = "github"`, `owner`, `repo`, a full immutable `rev` and SHA256 `narHash`.
+The initial backend also requires immutable GitHub nodes in its source lock.
+Mutable paths, alternate fetcher fields and subdirectory selectors are outside
+this backend's source grammar.
+
+Resolution checks the derivation system, original source-lock identity,
+current root selectors and nested overrides, and the native resolved input
+graph. Native Nix resolves follows; comparison with the original lock rejects
+in-memory refreshes. A source without a lock must have no external inputs.
+The companion `jvmSdkSourcesTool` exposes Python declaration and native graph
+validation. Native validation uses `--no-update-lock-file` alone: adding
+`--no-write-lock-file` permits in-memory refresh and must not be combined with it.
+
+Call source resolution with explicit `pure-eval = true` and
+`allow-import-from-derivation = false`. The resolver rejects an impure context;
+the no-IFD setting must be enforced by the caller. Its combined `closureInputs`
+also retains `sourceInputs`: root and transitive flake source trees, which
+need not be runtime dependencies of the SDK itself. Retain these live values
+in acquisition roots before offline replay. Serialized store paths and hashes
+alone are not build inputs.
+
+Consumers must still compare the actual native manager process and task SDK
+selections against these identities before task actions. These shared
+primitives do not automatically change a purifier's capture or replay behavior.
+
 ### `lockedProjectInputs`
 
 `lockedProjectInputs { inputs; system; }` resolves the Nix packages recorded
