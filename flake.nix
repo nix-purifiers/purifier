@@ -35,7 +35,21 @@
 
         libOverlays = lib: lib.caisson.mkLibOverlays ./lib-overlays;
       };
+      outputs = lib.caisson.flake-parts.mkTopConfiguration { };
     in
-    lib.caisson.flake-parts.mkTopConfiguration { };
+    outputs
+    // {
+      # Provider records are not derivations. Extend the public lib output
+      # locally without changing Caisson's composed-library option type.
+      lib = outputs.lib // {
+        jvmSdkAdapters.x86_64-linux = import ./nix/lib/jvm-sdk-adapters.nix {
+          pkgs = import inputs.nixpkgs {
+            system = "x86_64-linux";
+            config = { };
+            overlays = [ ];
+          };
+        };
+      };
+    };
 
 }

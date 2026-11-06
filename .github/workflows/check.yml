@@ -27,3 +27,12 @@ jobs:
       - uses: cachix/install-nix-action@v31
       - run: nix flake check -L
       - run: python3 tests/project-input-sources.py
+      - run: python3 -B tests/jvm-sdk-sources.py --output sdk-source-proof.json
+      - run: python3 -B tests/jvm-sdk-replay.py --output sdk-replay-proof.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jvm-sdk-source-proof-${{ matrix.runner }}
+          path: |
+            sdk-source-proof.json
+            sdk-replay-proof.json
