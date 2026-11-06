@@ -88,6 +88,13 @@ def validate_source_graph(source, *, offline=False, nix="nix"):
     locked = metadata["locked"]
     if any(locked.get(key) != value for key, value in source.items()):
         raise ValueError("native SDK source identity differs")
+    # Metadata may describe a lazy tree that has not entered the store.
+    # Archive materializes this exact source and its native input graph.
+    archive_command = command.copy()
+    archive_command[2] = "archive"
+    archive = json.loads(subprocess.check_output(archive_command, text=True), object_pairs_hook=_object)
+    if archive["path"] != metadata["path"]:
+        raise ValueError("native SDK archive differs from metadata source")
     return {"source": source, "sourceLock": validate_source_lock(metadata["path"], metadata["locks"])}
 
 
@@ -100,6 +107,8 @@ def validate_source_lock(source_path, graph):
     path = Path(source_path)
     if not str(path).startswith("/nix/store/") or path.resolve() != path:
         raise ValueError("native SDK source is not a canonical store tree")
+    if not path.is_dir():
+        raise ValueError("native SDK source tree is not materialized")
     root = graph["root"]
     nodes = graph["nodes"]
     if graph["version"] != 7 or root not in nodes:
