@@ -10,11 +10,23 @@ unless Gem.respond_to?(:source_date_epoch)
     end
   end
 
-  class Gem::Package
-    alias_method :purifier_native_initialize, :initialize
-    def initialize(*arguments)
-      purifier_native_initialize(*arguments)
-      @build_time = Gem.source_date_epoch
+  if Gem::Package.is_a?(Class)
+    class Gem::Package
+      alias_method :purifier_native_initialize, :initialize
+      def initialize(*arguments)
+        purifier_native_initialize(*arguments)
+        @build_time = Gem.source_date_epoch
+      end
+    end
+  elsif Gem::Package.instance_of?(Module)
+    # RubyGems 1.x writes packages through TarOutput, with native gzip
+    # writers instead of Package instances carrying a build timestamp.
+    class Zlib::GzipWriter
+      alias_method :purifier_native_gzip_initialize, :initialize
+      def initialize(*arguments)
+        purifier_native_gzip_initialize(*arguments)
+        self.mtime = Gem.source_date_epoch
+      end
     end
   end
 
@@ -28,7 +40,7 @@ unless Gem.respond_to?(:source_date_epoch)
   class Gem::Specification
     alias_method :purifier_native_date, :date
     def date
-      if @date.nil?
+      if @date.nil? || @date.equal?(default_value(:date))
         epoch = Gem.source_date_epoch
         @date = Time.utc(epoch.year, epoch.month, epoch.day)
       end
