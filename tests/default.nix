@@ -438,6 +438,7 @@ in
         export RUBYGEMS_PROJECTOR=${../tools}/rubygems_repository.rb
         ruby ${./rubygems/historical_repository.rb}
         ${pkgs.python3}/bin/python3 ${./rubygems/codec_native.py} ${pkgs.ruby} ${../tools}/rubygems_repository.rb
+        ${pkgs.python3}/bin/python3 ${./rubygems/codec_epoch.py} ${pkgs.ruby} --codec ${../tools}/rubygems_codec.rb
         touch $out
       '';
 
@@ -679,6 +680,7 @@ in
       export RUBYGEMS_PROJECTOR=${../tools}/rubygems_repository.rb
       ${old.ruby_2_5}/bin/ruby ${./rubygems/historical_repository.rb}
       ${pkgs.python3}/bin/python3 ${./rubygems/codec_native.py} ${old.ruby_2_5} ${../tools}/rubygems_repository.rb
+      ${pkgs.python3}/bin/python3 ${./rubygems/codec_epoch.py} ${old.ruby_2_5} --codec ${../tools}/rubygems_codec.rb
       touch $out
     '';
 }
