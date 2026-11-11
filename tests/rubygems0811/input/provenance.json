@@ -1,0 +1,15 @@
+{
+  "format": "original-sdk-native-generated-test-input-v1",
+  "archive": "ancient_leaf-1.0.0.gem",
+  "archiveSha256": "fcf93acd9e85dd05c6586449a072c18ea42a60c63addcd6b2f8a8fd2427bc50f",
+  "payloadMember": "lib/ancient_leaf.rb",
+  "payloadSha256": "c88d04e822ed4aa2a6c8bc91aa14b53b7e2b7546f3345704b3aaa9732ba5d0c0",
+  "metadataSha256": "1a3c53d1701f9f3fa93dc2639756ef5f051ed2df7390f03ab1c0acc6569ba8c8",
+  "generatorRuby": "1.8.0",
+  "generatorRubySourceHash": "sha256-EVxf4KFXCavRtkNRqhvtnAMNHz13ytPy8rULNwTCAfE=",
+  "generatorRubyGems": "0.8.11",
+  "generatorRubyGemsSourceHash": "sha256-x+2bn1DqzpXa7EkXRM0yLnTAZg3QAZ85n1TIW7cCtf8=",
+  "originalGenerationDerivation": "/nix/store/s0r00ss4d2w3pi99gd3qy4cwhpvfchys-original1800811-i686-pure-input.drv",
+  "generationATermSha256": "febc73b0d475462d936e06eba15699b1c7e5f1b0adc253240270efa506a98084",
+  "qualification": "Pinned unchanged native-generated synthetic fixture; original Gem builder embeds wall-clock gzip headers/date. This input does not claim reproducible native package production or upstream release status."
+}

@@ -30,4 +30,14 @@ scheme::INDEX_FIELDS.each do |key|
   changed=entry.merge(key=>(key=="nativeIndexProfile" ? "unknown" : "f"*64))
   rejected! {scheme.validate_provided!(changed,scheme::NUMERIC,sdk,index,configuration)}
 end
-puts "Index profile: explicit version/encoder/attestation, old omitted-profile reuse and #{scheme::INDEX_FIELDS.size * 2 + 5} rejection controls PASS"
+# Profiles cannot reuse one another's coordinates, even if caller-supplied
+# SDK/context hashes coincide. Existing omitted-profile interpretation holds.
+profile0811=profile.merge("nativeIndexProfile"=>scheme::INDEX_0811)
+configuration0811=scheme.index_configuration(profile0811)
+raise unless scheme.configuration(profile0811)==[scheme::NUMERIC,sdk,index]
+entry0811=entry.merge("nativeIndexProfile"=>scheme::INDEX_0811)
+scheme.validate_provided!(entry0811,scheme::NUMERIC,sdk,index,configuration0811)
+rejected! {scheme.validate_provided!(entry0811,scheme::NUMERIC,sdk,index,configuration)}
+rejected! {scheme.validate_provided!(entry,scheme::NUMERIC,sdk,index,configuration0811)}
+rejected! {scheme.validate_provided!(entry0811,scheme::NUMERIC,sdk,index)}
+puts "Index profiles: explicit094/0811 identity, cross-profile rejection and old omitted-profile reuse PASS"

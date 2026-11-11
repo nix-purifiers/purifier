@@ -490,6 +490,33 @@ Its source-initialization workflow, exact schema, endpoint manifest and bounded
 native evidence requirements are described in
 [the local candidate design](design/rubygems094-local.md).
 
+The separate `ruby180-rubygems0811-i686-v1` profile accepts original Ruby
+1.8.0 and RubyGems 0.8.11 on i686 Linux for pure Ruby packages. Its explicit
+`rubygems0811ConsumerSdk { pkgs; sdk; components; compiler; runtime; stdenv;
+sdkBuild; }` constructor measures the original sources, actual ELF32 interpreter,
+compiler and build provenance, bundled sources gem, and complete verifier
+closure. Pass its separate `consumerAttestation` with that exact profile and
+attestation identity. This profile uses original `require_gem` and
+`SourceIndex.new(Hash)` APIs; it installs no JSON gem or SDK aliases.
+The bootstrap uses original metadata APIs to fix only the bundled sources gem's
+date to 1970-01-01 in UTC, then removes exactly its transient generated cache.
+The schema records this packaging policy and verifies every installed source
+and the entire specification against the original embedded factory/payload.
+This is a packaged SDK; cached SDK reinstallation/redeployment is outside this
+profile. It changes no code, Ruby minimum, platform or dependency constraints.
+Its endpoint manifest contains only `yaml`, `yaml.Z` and validated gem archives.
+The native encoder compares a fresh observation with the fully verified
+attestation before writing indexes. The original CLI's zero exit status on
+some minimum-version errors is preserved; rejection tests also require the
+original Installer exception and absent installed payload/specification.
+
+This profile has a required x86 Linux CI step that actually executes the
+original i686 interpreter, twenty CRC controls, and HTTP consumption of the
+produced indexes. Unavailable native execution fails that check. It adds no
+ARM, macOS, x86_64 Ruby1.8.0, compiled-extension or Bundler support claim.
+Existing094/101 profiles and omitted-profile defaults retain their semantics.
+See [the 0811 profile contract](design/rubygems0811-local.md).
+
 The archive codec runs on `ruby`; `indexRuby` independently writes the native
 Marshal index from the resulting archives. Older interpreters can use a modern
 index helper without changing their compiled payloads or runtime SDK. The old

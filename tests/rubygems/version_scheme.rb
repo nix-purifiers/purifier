@@ -4,7 +4,7 @@ require "rubygems"
 require "digest/sha2"
 require File.expand_path("../../tools/rubygems_version_scheme", File.dirname(__FILE__))
 scheme = PurifierRubyGemsVersionScheme
-identity = "sha256-" + Base64.encode64(Digest::SHA256.digest("native SDK fixture")).delete("\n")
+identity = "sha256-" + [Digest::SHA256.digest("native SDK fixture")].pack("m").delete("\n")
 index_identity = Digest::SHA256.hexdigest("native index runtime fixture")
 raise unless scheme.configuration({}) == [scheme::DEFAULT, nil, nil]
 raise unless scheme.configuration({"versionScheme" => scheme::NUMERIC, "nativeSdkIdentity" => identity, "nativeIndexIdentity" => index_identity}) == [scheme::NUMERIC, identity, index_identity]
@@ -40,4 +40,14 @@ checks.each do |operation|
   end
   raise "invalid numeric projection accepted" unless rejected
 end
-puts "Version schemes: native zero/max/full fingerprint, exact requirements, Marshal, default encoding and 9 rejection controls PASS"
+malformed_identities = [nil, false, true, 0, [], {}, "", identity + " ", identity + "\n", identity.sub(/=$/, ""), identity + "=", "sha256-" + "A" * 42 + "B=", identity.sub(/\Asha256-/, "sha256-\t"), identity.sub(/\Asha256-/, "sha256-\000")]
+malformed_identities.each do |invalid|
+  rejected = false
+  begin
+    scheme.configuration({"versionScheme"=>scheme::NUMERIC, "nativeSdkIdentity"=>invalid, "nativeIndexIdentity"=>index_identity})
+  rescue StandardError
+    rejected = true
+  end
+  raise "malformed SDK SRI accepted" unless rejected
+end
+puts "Version schemes: native full fingerprint, exact requirements, Marshal, default encoding, 9 projection and 14 strict SRI rejection controls PASS"

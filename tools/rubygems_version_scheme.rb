@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: MIT
 # Explicit projection identities for native RubyGems version grammars.
-require "base64"
 module PurifierRubyGemsVersionScheme
   DEFAULT = "nix-prerelease-v1"
   NUMERIC = "legacy-numeric-v1"
   INDEX_094 = "ruby182-rubygems094-v1"
+  INDEX_0811 = "ruby180-rubygems0811-i686-v1"
   INDEX_FIELDS = %w[nativeIndexProfile nativeIndexEncoderIdentity nativeConsumerAttestationIdentity nativeIndexClosureIdentity]
 
   def self.index_configuration(specification)
     present = INDEX_FIELDS.select { |key| specification.key?(key) }
     return nil if present.empty?
     raise "incomplete native index profile" unless present == INDEX_FIELDS
-    raise "unsupported native index profile" unless specification["nativeIndexProfile"] == INDEX_094
+    raise "unsupported native index profile" unless [INDEX_094, INDEX_0811].include?(specification["nativeIndexProfile"])
     raise "native index profile requires numeric versions" unless specification["versionScheme"] == NUMERIC
     INDEX_FIELDS[1..-1].each do |key|
       raise "invalid native index profile identity" unless specification[key].is_a?(String) && specification[key] =~ /\A[0-9a-f]{64}\z/
@@ -28,8 +28,8 @@ module PurifierRubyGemsVersionScheme
     if scheme == NUMERIC
       valid = identity.is_a?(String) && identity =~ /\Asha256-[A-Za-z0-9+\/]{43}=\z/
       if valid
-        raw = Base64.decode64(identity.sub(/\Asha256-/, ""))
-        valid = raw.length == 32 && "sha256-" + Base64.encode64(raw).delete("\n") == identity
+        raw = identity.sub(/\Asha256-/, "").unpack("m")[0]
+        valid = raw.length == 32 && "sha256-" + [raw].pack("m").delete("\n") == identity
       end
       raise "numeric RubyGems projection needs an exact SDK identity" unless valid
       raise "numeric RubyGems projection needs an exact native index runtime" unless index_identity.is_a?(String) && index_identity =~ /\A[0-9a-f]{64}\z/

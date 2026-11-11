@@ -38,23 +38,54 @@ assert lib.assertMsg (
   if legacyIndexProfile == null then
     legacyIndexAttestation == null
   else
-    legacyIndexProfile == "ruby182-rubygems094-v1"
+    builtins.elem legacyIndexProfile [
+      "ruby182-rubygems094-v1"
+      "ruby180-rubygems0811-i686-v1"
+    ]
     && versionScheme == "legacy-numeric-v1"
     && legacyIndexAttestation != null
-) "SDK094 requires its explicit index profile and separate consumer attestation";
+) "native consumer requires its explicit index profile and separate consumer attestation";
 let
   sdk094 = legacyIndexProfile == "ruby182-rubygems094-v1";
+  sdk0811 = legacyIndexProfile == "ruby180-rubygems0811-i686-v1";
+  explicitConsumer = sdk094 || sdk0811;
+  consumerProbe =
+    if sdk0811 then ../../tools/rubygems_0811_probe.rb else ../../tools/rubygems_consumer_sdk_probe.rb;
+  consumerContract =
+    if sdk0811 then
+      ../../tools/rubygems_0811_contract.rb
+    else
+      ../../tools/rubygems_consumer_sdk_contract.rb;
   legacyIndexer =
-    if sdk094 then ../../tools/rubygems_094_index.rb else ../../tools/rubygems_legacy_index.rb;
+    if sdk0811 then
+      ../../tools/rubygems_0811_index.rb
+    else if sdk094 then
+      ../../tools/rubygems_094_index.rb
+    else
+      ../../tools/rubygems_legacy_index.rb;
   sdk094Encoder = runCommand "rubygems094-index-encoder-identity" {
     writer = ../../tools/rubygems_094_index.rb;
     probe = ../../tools/rubygems_consumer_sdk_probe.rb;
     contract = ../../tools/rubygems_consumer_sdk_contract.rb;
   } "touch $out";
+  sdk0811Encoder = runCommand "rubygems0811-index-encoder-identity" {
+    writer = ../../tools/rubygems_0811_index.rb;
+    probe = consumerProbe;
+    contract = consumerContract;
+    verifier = ../../tools/rubygems_0811_sdk.py;
+    sourcesHelper = ../../tools/rubygems_0811_sources_spec.rb;
+  } "touch $out";
+  selectedEncoder = if sdk0811 then sdk0811Encoder else sdk094Encoder;
   # Nix itself exports the actual executed SDK's references. Do not trust a
   # caller-provided list or the SDK's consumerClosure passthru for this join.
   sdk094Closure =
-    runCommand "rubygems094-authoritative-sdk-closure"
+    runCommand
+      (
+        if sdk0811 then
+          "rubygems0811-authoritative-sdk-closure"
+        else
+          "rubygems094-authoritative-sdk-closure"
+      )
       {
         __structuredAttrs = true;
         exportReferencesGraph.consumerSdk = [ legacyIndexRuby ];
@@ -63,9 +94,9 @@ let
         out=''${outputs[out]}
         ${ruby}/bin/ruby -r json -e 'document=JSON.parse(File.read(ENV.fetch("NIX_ATTRS_JSON_FILE"))); puts document.fetch("consumerSdk").map { |entry| entry.fetch("path") }.sort' > "$out"
       '';
-  indexProfileFields = lib.optionalAttrs sdk094 {
+  indexProfileFields = lib.optionalAttrs explicitConsumer {
     nativeIndexProfile = legacyIndexProfile;
-    nativeIndexEncoderIdentity = (inputIdentity sdk094Encoder).hash;
+    nativeIndexEncoderIdentity = (inputIdentity selectedEncoder).hash;
     nativeConsumerAttestationIdentity = (inputIdentity legacyIndexAttestation).hash;
     nativeIndexClosureIdentity = (inputIdentity sdk094Closure).hash;
     nativeConsumerAttestation = toString legacyIndexAttestation;
@@ -91,9 +122,9 @@ let
       inherit legacyIndexer;
       legacyIndexRuntime = legacyIndexRuby;
     }
-    // lib.optionalAttrs sdk094 {
+    // lib.optionalAttrs explicitConsumer {
       consumerAttestation = legacyIndexAttestation;
-      consumerSdkContract = ../../tools/rubygems_consumer_sdk_contract.rb;
+      consumerSdkContract = consumerContract;
       consumerClosure = sdk094Closure;
       indexProfile = legacyIndexProfile;
     }
@@ -152,24 +183,32 @@ let
         passthru.catalog = "${projection.metadata}/catalog.json";
       }
       ''
-        ${lib.optionalString sdk094 ''
+        ${lib.optionalString explicitConsumer ''
           ${legacyIndexRuby}/bin/purifier-verify-consumer-sdk ${lib.escapeShellArg (toString legacyIndexAttestation)} ${legacyIndexRuby}/bin/ruby ${sdk094Closure}
         ''}
         PURIFIER_RUBYGEMS_CODEC_PRELOADED=1 PURIFIER_RUBYGEMS_VERSION_SCHEME_PRELOADED=1 PURIFIER_RUBYGEMS_SEPARATE_INDEX=1 \
-          ${ruby}/bin/ruby -r ${../../tools/rubygems_codec.rb} -r ${../../tools/rubygems_version_scheme.rb} ${lib.optionalString sdk094 "-r ${../../tools/rubygems_consumer_sdk_contract.rb}"} ${../../tools/rubygems_repository.rb} "$specPath" \
+          ${ruby}/bin/ruby -r ${../../tools/rubygems_codec.rb} -r ${../../tools/rubygems_version_scheme.rb} ${lib.optionalString explicitConsumer "-r ${consumerContract}"} ${../../tools/rubygems_repository.rb} "$specPath" \
           "$out" "$metadata/catalog.json"
-        ${lib.optionalString (!sdk094) ''
+        ${lib.optionalString (!explicitConsumer) ''
           ${indexRuby}/bin/ruby ${../../tools/rubygems_index.rb} "$out" "$metadata/catalog.json"
         ''}
         ${lib.optionalString (legacyIndexRuby != null) ''
-          ${lib.optionalString sdk094 ''
+          ${lib.optionalString explicitConsumer ''
             unset RUBYOPT RUBYLIB RUBYGEMS_GEMDEPS
             export HOME="$TMPDIR/ordinary-consumer-home" GEM_HOME="$TMPDIR/ordinary-consumer-gems" GEM_PATH="$TMPDIR/ordinary-consumer-gems"
             mkdir -p "$HOME" "$GEM_HOME"
-            export PURIFIER_CONSUMER_PROBE=${../../tools/rubygems_consumer_sdk_probe.rb}
-            export PURIFIER_CONSUMER_CONTRACT=${../../tools/rubygems_consumer_sdk_contract.rb}
+            export PURIFIER_CONSUMER_PROBE=${consumerProbe}
+            export PURIFIER_CONSUMER_CONTRACT=${consumerContract}
           ''}
-          ${legacyIndexRuby}/bin/ruby ${legacyIndexer} "$out" ${lib.optionalString sdk094 (lib.escapeShellArg (toString legacyIndexAttestation))}
+          ${lib.optionalString sdk0811 ''
+            ${ruby}/bin/ruby -r ${consumerContract} -e 'value=PurifierRubyGems0811Contract.read!(ARGV.fetch(0),ARGV.fetch(1)); puts PurifierRubyGems0811Contract.canonical(value.fetch("observation"))' ${lib.escapeShellArg (toString legacyIndexAttestation)} ${lib.escapeShellArg nativeSdkIdentity} > "$TMPDIR/verified0811-observation.json"
+          ''}
+          ${legacyIndexRuby}/bin/ruby ${legacyIndexer} "$out" ${
+            if sdk0811 then
+              ''"$TMPDIR/verified0811-observation.json"''
+            else
+              lib.optionalString sdk094 (lib.escapeShellArg (toString legacyIndexAttestation))
+          }
         ''}
         mkdir -p "$out/nix-support"
         printf '%s\n' ${

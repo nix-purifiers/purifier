@@ -36,6 +36,17 @@ jobs:
         with:
           name: implementation-lifecycle-${{ matrix.runner }}
           path: ${{ runner.temp }}/implementation-lifecycle.json
+      - name: Original Ruby 1.8.0 and RubyGems 0.8.11 native i686 consumption
+        if: runner.os == 'Linux' && runner.arch == 'X64'
+        shell: bash
+        run: |
+          export NIX_CONFIG="${NIX_CONFIG:-}"$'\n''extra-platforms = i686-linux'
+          bash tests/rubygems0811/ci.sh "$RUNNER_TEMP/rubygems0811-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Linux' && runner.arch == 'X64'
+        with:
+          name: rubygems0811-native-i686
+          path: ${{ runner.temp }}/rubygems0811-evidence
       - run: python3 tests/project-input-sources.py
       - run: python3 -B tests/jvm-sdk-sources.py --output sdk-source-proof.json
       - run: python3 -B tests/jvm-sdk-replay.py --output sdk-replay-proof.json
