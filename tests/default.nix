@@ -200,6 +200,7 @@ in
     '';
   };
   implementation-package = import ./implementation.nix { inherit pkgs purifier; };
+  implementation-canonical = import ./implementation-canonical.nix { inherit pkgs; };
   implementation-bootstrap =
     pkgs.runCommand "purifier-implementation-bootstrap-tests" { nativeBuildInputs = [ pkgs.python3 ]; }
       ''
