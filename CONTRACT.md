@@ -47,6 +47,68 @@ An existing invalid or stale lock is an error, rather than an excuse to
 silently switch to impure resolution. Explicit dependency-update commands
 and documented opt-out settings may deliberately use the network.
 
+## Purifier implementation
+
+A project owns its purifier implementation pin. Updating an installed wrapper,
+running `lock`, updating dependencies, or running `prefetch` must preserve it.
+The pin lives in the purifier lock (or in a native lock that can represent it),
+covered by that lock's content hash. It has a separate bootstrap format:
+
+```json
+{
+  "version": 1,
+  "tool": "npm-purifier",
+  "source": {
+    "type": "github",
+    "owner": "nix-purifiers",
+    "repo": "npm-purifier",
+    "rev": "<full commit SHA>",
+    "narHash": "sha256-<source NAR hash>"
+  }
+}
+```
+
+The revision locates the source; the NAR hash verifies it. The source includes
+the committed Nix input lock, so its wrapper, plugins, adapters and helpers are
+selected together. Bootstrap version 1 supports GitHub sources and Git sources
+(`type`, absolute `url`, `rev`, `narHash`). Git HTTPS/SSH URLs support other hosts
+and mirrors; file URLs are for explicitly local implementations, not portable
+project setup. Transport/location is separate from revision-and-content identity.
+A source build
+without a clean revision and NAR identity cannot create a portable pin, and an
+installation with overridden inputs must not claim the original identity.
+
+An implementation-aware wrapper reads this envelope before doing ecosystem
+work or injecting a plugin. It uses Nix to obtain the selected package, verifies
+the package's bootstrap manifest against the pin, and execs its entrypoint with
+the original arguments, streams, working directory and exit status. It retains
+the selected package with a GC root beside the lock. Unknown bootstrap versions,
+bad hashes, unavailable sources and package identity mismatches fail; none permits
+substitution of the installed implementation. Cached implementations work offline.
+
+`<tool>-purifier self-update --to installed` explicitly selects the installed
+implementation. `--to github:OWNER/REPO[/REV]` explicitly resolves and selects
+another implementation; `git+https:`, `git+ssh:` and `git+file:` references are
+also accepted. The target must support the bootstrap and the existing
+lock format. It relocks a staged copy through `implementation-relock`; only a
+successful relock replaces the project lock. A native dependency lock is supplied
+as a private read-only staged copy and must remain unchanged. Live lock changes
+by another writer abort the update without rolling that writer's files back.
+Dependency update commands do not
+perform this operation. Format migrations not supported by the target fail
+without replacing the lock. Projects need no flake for this workflow.
+
+New locks record the implementation. Legacy locks remain usable with a warning;
+gaining a pin requires explicit `self-update` migration. Programs released before
+this protocol cannot enforce it: use an implementation-aware wrapper. A project
+without a lock retains its ordinary impure fallback.
+
+Plugins must either select the pinned implementation through their native
+bootstrap mechanism or reject mismatches and direct the developer to the
+wrapper. A plugin must not accept an environment marker as proof of its own
+identity without verifying its loaded artifact. Nix builders also reject an
+implementation mismatch, including when called without the aware overlay.
+
 ## Source state
 
 Git-dependent build behavior belongs to the source input, not to the dependency
@@ -164,7 +226,7 @@ A purifier reuses the build tool's own lockfile wherever it records the
 downloads. It writes `<tool>-purifier.lock.json`, next to the build
 tool's lockfile or at the external path, only for what the build tool's
 lockfile cannot record. A purifier whose build
-tool records everything writes no lockfile of its own.
+tool records every download and the implementation pin writes no lockfile of its own.
 
 Every purifier lockfile holds a format `version` and a hash of its own
 content. A stale, tampered, malformed or incomplete lockfile fails, in the
