@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Backport reproducible packaging to native codecs predating SOURCE_DATE_EPOCH.
 require "rubygems"
+require "rubygems/exceptions"
 require "rubygems/package"
 
 unless Gem.respond_to?(:source_date_epoch)
