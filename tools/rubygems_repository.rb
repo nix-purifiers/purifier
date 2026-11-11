@@ -118,10 +118,16 @@ packages.each do |archive, original, provided|
     package.extract_files(directory) unless provided
     spec = original.dup
     spec.version = versions.fetch(original.name)
-    spec.dependencies.each do |dependency|
-      next if provided
-      next unless dependency.type == :runtime && versions.key?(dependency.name)
-      dependency.instance_variable_set(:@requirement, Gem::Requirement.new("= #{versions.fetch(dependency.name)}"))
+    spec.dependencies.map! do |dependency|
+      next dependency if provided
+      next dependency unless dependency.type == :runtime && versions.key?(dependency.name)
+      # Native initialization keeps both the current and legacy serialized
+      # requirements consistent for older RubyGems consumers.
+      pinned = Gem::Dependency.new(dependency.name, "= #{versions.fetch(dependency.name)}", dependency.type)
+      if dependency.respond_to?(:prerelease?) && pinned.respond_to?(:prerelease=)
+        pinned.prerelease = dependency.prerelease?
+      end
+      pinned
     end
     unless provided
       seen_sdk = {}
