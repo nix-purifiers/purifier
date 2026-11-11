@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 # The small bootstrap identity is independent of ecosystem lock schemas.
 { lib }:
-{
+args@{
   pkgs,
   source,
   repository,
@@ -9,8 +9,18 @@
   nativeCommand,
   checksum,
   lockVersions,
+  configuration ? null,
 }:
 let
+  validData =
+    value:
+    value == null
+    || builtins.isString value
+    || builtins.isBool value
+    || builtins.isInt value
+    || (builtins.isList value && builtins.all validData value)
+    || (builtins.isAttrs value && builtins.all validData (builtins.attrValues value));
+  validConfiguration = value: builtins.isAttrs value && value != { } && validData value;
   parts = lib.splitString "/" repository;
   identity =
     if (source.rev or null) == null || (source.narHash or null) == null || (source.dirty or false) then
@@ -26,7 +36,8 @@ let
     version = 1;
     inherit tool;
     source = identity;
-  };
+  }
+  // lib.optionalAttrs (configuration != null) { inherit configuration; };
   manifest = pkgs.writeText "${tool}-implementation.json" (
     builtins.toJSON {
       bootstrapVersion = 1;
@@ -36,6 +47,7 @@ let
         checksum
         lockVersions
         ;
+      inherit configuration;
       source = identity;
       system = pkgs.stdenv.hostPlatform.system;
     }
@@ -60,10 +72,16 @@ let
   validLockedSource = (import ./implementation-source.nix).valid;
 in
 assert lib.assertMsg (
+  configuration == null || validConfiguration configuration
+) "purifier implementation configuration must be a nonempty object or null";
+assert lib.assertMsg (
   builtins.length parts == 2
 ) "purifier implementation repository must be OWNER/REPO";
 {
   inherit identity pin manifest;
+  withoutIdentity = (import ./implementation.nix { inherit lib; }) (args // { source = { }; });
+  withConfiguration =
+    selected: (import ./implementation.nix { inherit lib; }) (args // { configuration = selected; });
   tool = ../../tools/implementation.py;
   sourceModel = ./implementation-source.nix;
   wrap = wrapPackage;
@@ -75,14 +93,24 @@ assert lib.assertMsg (
       value
     else if
       !builtins.isAttrs locked
-      ||
-        builtins.attrNames locked != [
+      || !(builtins.elem (builtins.attrNames locked) [
+        [
           "source"
           "tool"
           "version"
         ]
+        [
+          "configuration"
+          "source"
+          "tool"
+          "version"
+        ]
+      ])
+      || !builtins.isInt (locked.version or null)
       || (locked.version or null) != 1
       || (locked.tool or null) != tool
+      || (locked.configuration or null) != configuration
+      || (locked ? configuration && !validConfiguration locked.configuration)
       || identity == null
       || !validLockedSource (locked.source or null)
       || (locked.source.rev or null) != identity.rev

@@ -46,10 +46,29 @@ class ImplementationTests(unittest.TestCase):
     def test_unknown_envelope_and_wrong_project_rejected(self):
         pin = {"version": 1, "tool": "npm-purifier", "source": source()}
         implementation.validate_pin(pin, "npm-purifier")
-        for bad in [dict(pin, version=2), dict(pin, tool="sbt-purifier"),
+        for bad in [dict(pin, version=2), dict(pin, version=1.0), dict(pin, version=True), dict(pin, tool="sbt-purifier"),
                     dict(pin, executable="arbitrary")]:
             with self.assertRaises(ValueError):
                 implementation.validate_pin(bad, "npm-purifier")
+
+    def test_configuration_is_typed_data_and_part_of_package_identity(self):
+        config = {"tool": "npm-purifier", "source": source(), "bootstrapVersion": 1,
+                  "configuration": {"sdk": {"version": "8.17.0"}, "format": 1}}
+        pin = implementation.installed_pin(config)
+        self.assertEqual(pin["configuration"], config["configuration"])
+        for value in (None, {}, [], 1, {"value": float("nan")}, {"value": 1.5}):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                implementation.validate_pin(dict(pin, configuration=value), "npm-purifier")
+        self.assertFalse(implementation.same_configuration({"x": True}, {"x": 1}))
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "share/purifier/implementation.json"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text(json.dumps(config))
+            implementation.verify_package(Path(tmp), pin)
+            for changed in (None, {"sdk": {"version": "24.0.0"}, "format": 1}):
+                manifest.write_text(json.dumps(dict(config, configuration=changed)))
+                with self.assertRaisesRegex(ValueError, "identity"):
+                    implementation.verify_package(Path(tmp), pin)
 
     def test_npm_checksum_covers_pin_and_preserves_other_fields(self):
         value = {"version": 3, "hash": "", "git": {}, "other": [42]}

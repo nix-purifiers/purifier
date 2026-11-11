@@ -51,14 +51,37 @@ def validate_source(value):
 
 
 def validate_pin(value, tool):
-    if not isinstance(value, dict) or set(value) != {"version", "tool", "source"}:
+    if not isinstance(value, dict) or set(value) not in ({"version", "tool", "source"}, {"version", "tool", "source", "configuration"}):
         raise ValueError("invalid implementation pin envelope")
     if type(value["version"]) is not int or value["version"] != 1:
         raise ValueError("unsupported implementation pin version; update the installed wrapper")
     if value["tool"] != tool:
         raise ValueError("implementation pin belongs to another purifier")
     validate_source(value["source"])
+    if "configuration" in value:
+        validate_configuration(value["configuration"])
     return value
+
+
+def validate_configuration(value):
+    # Tool-specific keys are checked by the immutable source constructor.
+    # The bootstrap accepts only JSON data, never expressions or store paths.
+    if not isinstance(value, dict) or not value:
+        raise ValueError("implementation configuration must be a nonempty object")
+    def valid(item):
+        if item is None or type(item) in (str, bool, int):
+            return True
+        if isinstance(item, list):
+            return all(valid(child) for child in item)
+        return isinstance(item, dict) and all(isinstance(key, str) and valid(child) for key, child in item.items())
+    if not valid(value):
+        raise ValueError("implementation configuration requires finite JSON data without floating-point values")
+    return value
+
+
+def same_configuration(left, right):
+    # JSON booleans and integers are distinct identities (Python equality is not).
+    return json.dumps(left, sort_keys=True, separators=(",", ":")) == json.dumps(right, sort_keys=True, separators=(",", ":"))
 
 
 def same_source(left, right):
@@ -231,11 +254,15 @@ def resolve_package(pin, config, entry, lockfile):
     reference = source_ref(pin["source"])
     # Git flake URLs do not consistently treat a narHash query as a fetcher
     # attribute. Check the structured fetch BEFORE evaluating package code.
+    package_expression = "flake.packages." + nix_string(config["system"]) + "." + nix_string(entry)
+    if "configuration" in pin:
+        package_expression = ("flake.lib." + nix_string(pin["tool"]) + ".implementationPackage { system = "
+                              + nix_string(config["system"]) + "; entry = " + nix_string(entry)
+                              + "; configuration = builtins.fromJSON " + nix_string(json.dumps(pin["configuration"])) + "; }")
     expression = ("let verified = builtins.fetchTree (builtins.fromJSON "
                   + nix_string(json.dumps(pin["source"])) + "); "
                   + "flake = builtins.getFlake " + nix_string(reference) + "; "
-                  + "in builtins.seq verified.outPath flake.packages."
-                  + nix_string(config["system"]) + "." + nix_string(entry))
+                  + "in builtins.seq verified.outPath (" + package_expression + ")")
     key = hashlib.sha256(json.dumps(pin, sort_keys=True).encode()).hexdigest()
     gc_root = Path(lockfile).parent / ("." + config["tool"]) / "implementations" / ("implementation-" + key + "-" + entry)
     gc_root.parent.mkdir(parents=True, exist_ok=True)
@@ -250,7 +277,8 @@ def resolve_package(pin, config, entry, lockfile):
 def verify_package(package, pin):
     manifest = json.loads((package / "share/purifier/implementation.json").read_text())
     if (manifest.get("bootstrapVersion") != 1 or manifest.get("tool") != pin["tool"]
-            or not same_source(pin["source"], manifest.get("source"))):
+            or not same_source(pin["source"], manifest.get("source"))
+            or not same_configuration(pin.get("configuration"), manifest.get("configuration"))):
         raise ValueError("selected package does not confirm the pinned implementation identity")
     return manifest
 
@@ -258,7 +286,10 @@ def verify_package(package, pin):
 def installed_pin(config):
     if config.get("source") is None:
         raise ValueError("this installation has no portable source identity; use self-update --to github:OWNER/REPO/REV")
-    return validate_pin({"version": 1, "tool": config["tool"], "source": config["source"]}, config["tool"])
+    pin = {"version": 1, "tool": config["tool"], "source": config["source"]}
+    if config.get("configuration") is not None:
+        pin["configuration"] = config["configuration"]
+    return validate_pin(pin, config["tool"])
 
 
 def run(args):
@@ -285,7 +316,13 @@ def run(args):
             locked = metadata["locked"]
             keys = ("type", "owner", "repo", "rev", "narHash") if locked["type"] == "github" else ("type", "url", "rev", "narHash")
             source = {key: locked[key] for key in keys}
-            pin = validate_pin({"version": 1, "tool": config["tool"], "source": source}, config["tool"])
+            existing = read_lock(path.read_text(), config["checksum"]).get("implementation")
+            pin = {"version": 1, "tool": config["tool"], "source": source}
+            if existing is not None:
+                validate_pin(existing, config["tool"])
+                if "configuration" in existing:
+                    pin["configuration"] = existing["configuration"]
+            pin = validate_pin(pin, config["tool"])
             package = resolve_package(pin, config, config["tool"], path)
             selected = verify_package(package, pin)
             program = package / "bin" / config["tool"]
@@ -301,7 +338,8 @@ def run(args):
               + config["tool"] + " self-update --to installed` to migrate it", file=sys.stderr)
         return
     validate_pin(pin, config["tool"])
-    if same_source(pin["source"], config.get("source")):
+    if (same_source(pin["source"], config.get("source"))
+            and same_configuration(pin.get("configuration"), config.get("configuration"))):
         return
     # There is no environment-variable escape hatch. A selected package must
     # identify itself; its own bootstrap then sees an exact identity match.
