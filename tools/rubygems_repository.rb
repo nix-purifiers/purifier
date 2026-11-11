@@ -8,7 +8,7 @@ require "tmpdir"
 require "zlib"
 require "digest"
 require "base64"
-require File.expand_path("rubygems_version_scheme.rb", File.dirname(__FILE__))
+require File.expand_path("rubygems_version_scheme.rb", File.dirname(__FILE__)) unless ENV["PURIFIER_RUBYGEMS_VERSION_SCHEME_PRELOADED"] == "1"
 
 specification = JSON.parse(File.read(ARGV.fetch(0)))
 version_scheme, native_sdk_identity = PurifierRubyGemsVersionScheme.configuration(specification)

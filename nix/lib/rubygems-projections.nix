@@ -96,8 +96,8 @@ let
         passthru.catalog = "${projection.metadata}/catalog.json";
       }
       ''
-        PURIFIER_RUBYGEMS_CODEC_PRELOADED=1 PURIFIER_RUBYGEMS_SEPARATE_INDEX=1 \
-          ${ruby}/bin/ruby -r ${../../tools/rubygems_codec.rb} ${../../tools/rubygems_repository.rb} "$specPath" \
+        PURIFIER_RUBYGEMS_CODEC_PRELOADED=1 PURIFIER_RUBYGEMS_VERSION_SCHEME_PRELOADED=1 PURIFIER_RUBYGEMS_SEPARATE_INDEX=1 \
+          ${ruby}/bin/ruby -r ${../../tools/rubygems_codec.rb} -r ${../../tools/rubygems_version_scheme.rb} ${../../tools/rubygems_repository.rb} "$specPath" \
           "$out" "$metadata/catalog.json"
         ${indexRuby}/bin/ruby ${../../tools/rubygems_index.rb} "$out" "$metadata/catalog.json"
         mkdir -p "$out/nix-support"
