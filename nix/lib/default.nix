@@ -10,6 +10,7 @@
   testFixtures.jsonConsumer = ../../tests/json-consumer.nix;
   rubygemsCodecCompatibility = ../../tools/rubygems_codec.rb;
   rubygemsProjections = import ./rubygems-projections.nix { inherit lib; };
+  rubygems0811ConsumerSdk = import ./rubygems-0811-consumer-sdk.nix { inherit lib; };
   rubygemsConsumerSdk = import ./rubygems-consumer-sdk.nix { inherit lib; };
   npmProjections = import ./npm-projections.nix { inherit lib; };
   npmRepositoryTool = ../../tools/npm_repository.py;

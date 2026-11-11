@@ -13,7 +13,10 @@ require File.expand_path("rubygems_version_scheme.rb", File.dirname(__FILE__)) u
 specification = JSON.parse(File.read(ARGV.fetch(0)))
 version_scheme, native_sdk_identity, native_index_identity = PurifierRubyGemsVersionScheme.configuration(specification)
 native_index_profile = PurifierRubyGemsVersionScheme.index_configuration(specification)
-if native_index_profile
+if native_index_profile && native_index_profile.first == PurifierRubyGemsVersionScheme::INDEX_0811
+  require File.expand_path("rubygems_0811_contract", File.dirname(__FILE__)) unless defined?(PurifierRubyGems0811Contract)
+  PurifierRubyGems0811Contract.read!(specification.fetch("nativeConsumerAttestation"), native_sdk_identity)
+elsif native_index_profile
   require File.expand_path("rubygems_consumer_sdk_contract", File.dirname(__FILE__)) unless defined?(PurifierRubyGemsConsumerSDKContract)
   PurifierRubyGemsConsumerSDKContract.read!(specification.fetch("nativeConsumerAttestation"), native_sdk_identity)
 end
