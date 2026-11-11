@@ -12,6 +12,15 @@ args@{
   configuration ? null,
 }:
 let
+  validData =
+    value:
+    value == null
+    || builtins.isString value
+    || builtins.isBool value
+    || builtins.isInt value
+    || (builtins.isList value && builtins.all validData value)
+    || (builtins.isAttrs value && builtins.all validData (builtins.attrValues value));
+  validConfiguration = value: builtins.isAttrs value && value != { } && validData value;
   parts = lib.splitString "/" repository;
   identity =
     if (source.rev or null) == null || (source.narHash or null) == null || (source.dirty or false) then
@@ -63,7 +72,7 @@ let
   validLockedSource = (import ./implementation-source.nix).valid;
 in
 assert lib.assertMsg (
-  configuration == null || (builtins.isAttrs configuration && configuration != { })
+  configuration == null || validConfiguration configuration
 ) "purifier implementation configuration must be a nonempty object or null";
 assert lib.assertMsg (
   builtins.length parts == 2
@@ -100,9 +109,7 @@ assert lib.assertMsg (
       || (locked.version or null) != 1
       || (locked.tool or null) != tool
       || (locked.configuration or null) != configuration
-      || (
-        locked ? configuration && (!builtins.isAttrs locked.configuration || locked.configuration == { })
-      )
+      || (locked ? configuration && !validConfiguration locked.configuration)
       || identity == null
       || !validLockedSource (locked.source or null)
       || (locked.source.rev or null) != identity.rev

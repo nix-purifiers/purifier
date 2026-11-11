@@ -230,7 +230,6 @@ reopening a source store path alone loses the revision identity. Source bytes
 are verified before evaluating the flake. `implementationSource.valid source`
 checks the descriptor without fetching it.
 
-
 Implementation pins may also contain a nonempty `configuration` object for a
 source-owned package variant, such as an exact Node.js SDK recipe. The bootstrap
 passes this data to the pinned source's

@@ -31,6 +31,13 @@ let
 in
 assert selected.check selected.pin true;
 assert configured.check configured.pin true;
+assert configured.withoutIdentity.identity == null;
+assert !(builtins.tryEval (configured.withoutIdentity.check configured.pin true)).success;
+assert builtins.all (value: !(builtins.tryEval ((selected.withConfiguration value).pin)).success) [
+  { value = 1.5; }
+  { value = [ { nested = 1.5; } ]; }
+  { value = ./implementation.nix; }
+];
 assert !(builtins.tryEval (configured.check selected.pin true)).success;
 assert !(builtins.tryEval (selected.check configured.pin true)).success;
 assert selected.check null true;

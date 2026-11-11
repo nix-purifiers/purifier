@@ -199,6 +199,11 @@ def main():
         assert json.loads(command([packages[0] / "bin/fixture", "identity"], project).stdout)["marker"] == 51
         command([packages[1] / "bin/fixture-purifier", "self-update", "--to", bootstrap.source_ref(sources[0])], project)
         assert lock.read_bytes() == configured_lock
+        # Choosing installed explicitly resets the configured variant.
+        command([packages[1] / "bin/fixture-purifier", "self-update", "--to", "installed"], project)
+        reset = bootstrap.read_lock(lock.read_text(), "npm")["implementation"]
+        assert "configuration" not in reset and reset["source"] == sources[1]
+        assert json.loads(command([packages[0] / "bin/fixture", "identity"], project).stdout)["marker"] == 43
         value["implementation"]["configuration"] = {"offset": 9}
         lock.write_text(bootstrap.render_lock(value, "npm"))
         failed = command([packages[0] / "bin/fixture", "identity"], project, expected=None)
@@ -240,7 +245,7 @@ def main():
                    "explicitSourceUpdate": True, "cachedWithoutBuildsOrSubstituters": True,
                    "builderSourceMetadataPreserved": True,
                    "configuredMarkers": [50, 51, 50], "sameSourceConfigurationDispatch": True,
-                   "unsupportedConfigurationRejected": True,
+                   "unsupportedConfigurationRejected": True, "installedUpdateResetsConfiguration": True,
                    "implementationGcRoots": len(roots)}
         text = json.dumps(receipt, indent=2) + "\n"
         if args.output:

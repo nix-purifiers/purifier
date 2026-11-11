@@ -78,6 +78,23 @@ A source build
 without a clean revision and NAR identity cannot create a portable pin, and an
 installation with overridden inputs must not claim the original identity.
 
+An optional nonempty `configuration` object selects a source-owned package
+variant. It contains JSON data (objects, arrays, strings, integers, booleans and
+null), with tool-specific keys and types validated by the pinned source's
+`lib.<tool>.implementationPackage { system; entry; configuration; }` constructor.
+Both entrypoints return manifests confirming the requested configuration; a
+missing or unsupported constructor fails rather than selecting a default SDK.
+The bootstrap and builder compare configuration as well as source identity,
+even when the source revision is unchanged. Omitted configuration selects the
+source's default package. Older bootstraps reject configured pins as unknown
+envelopes instead of ignoring their configuration.
+
+Source updates preserve the existing configuration. Explicit `--to installed`
+selects the installed package's source and configuration. A package whose custom
+configuration cannot be reproduced must not advertise a portable identity;
+`withoutIdentity` allows its ordinary unlocked/legacy execution while preventing
+new portable pins from claiming to reproduce it.
+
 An implementation-aware wrapper reads this envelope before doing ecosystem
 work or injecting a plugin. It uses Nix to obtain the selected package, verifies
 the package's bootstrap manifest against the pin, and execs its entrypoint with
