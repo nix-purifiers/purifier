@@ -40,7 +40,8 @@ unless Gem.respond_to?(:source_date_epoch)
   class Gem::Specification
     alias_method :purifier_native_date, :date
     def date
-      if @date.nil? || @date.equal?(default_value(:date))
+      native_default = respond_to?(:default_value, true) ? default_value(:date) : self.class.default_value(:date)
+      if @date.nil? || @date.equal?(native_default)
         epoch = Gem.source_date_epoch
         @date = Time.utc(epoch.year, epoch.month, epoch.day)
       end
@@ -51,7 +52,11 @@ unless Gem.respond_to?(:source_date_epoch)
   # Syck's native map emitter preserves the regular YAML map representation.
   # MRI 1.8 Hash iteration order changes between processes.
   if RUBY_VERSION =~ /\A1\.8\./
-    Gem.load_yaml
+    if Gem.respond_to?(:load_yaml)
+      Gem.load_yaml
+    else
+      require "yaml"
+    end
     class Hash
       def to_yaml(options = {})
         YAML.quick_emit(self, options) do |output|

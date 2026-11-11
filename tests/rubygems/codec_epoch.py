@@ -34,13 +34,17 @@ require "rubygems/package"
 original_package = Gem::Package
 original_kind = Gem::Package.class
 native_epoch = Gem.respond_to?(:source_date_epoch) ? Gem.method(:source_date_epoch) : nil
+# Record each SDK's native normalization before loading the codec.
+native_dates = ["2001-02-03", Time.utc(2001,2,3), Time.now.utc].map do |authored|
+  spec = Gem::Specification.new { |value| value.date = authored }
+  [authored, spec.date]
+end
 require ARGV.shift
 abort "native package object/type replaced" unless Gem::Package.equal?(original_package) && Gem::Package.class == original_kind
 abort "native epoch method replaced" if native_epoch && native_epoch != Gem.method(:source_date_epoch)
-["2001-02-03", Time.utc(2001,2,3), Time.now.utc].each do |authored|
-  spec = Gem::Specification.new { |s| s.date = authored }
-  expected = authored.is_a?(String) ? Time.utc(2001,2,3) : Time.utc(authored.year, authored.month, authored.day)
-  abort "authored date changed" unless spec.date == expected
+native_dates.each do |authored, expected|
+  spec = Gem::Specification.new { |value| value.date = authored }
+  abort "authored native date changed" unless spec.date == expected && spec.date.class == expected.class
 end
 spec = Gem::Specification.new do |s|
   s.name = "codec_fixture"; s.version = "1.0.0"; s.authors = ["fixture"]
