@@ -30,6 +30,7 @@ let
   );
 in
 assert selected.check selected.pin true;
+assert !(builtins.tryEval (selected.check (selected.pin // { version = 1.0; }) true)).success;
 assert configured.check configured.pin true;
 assert configured.withoutIdentity.identity == null;
 assert !(builtins.tryEval (configured.withoutIdentity.check configured.pin true)).success;

@@ -106,6 +106,7 @@ assert lib.assertMsg (
           "version"
         ]
       ])
+      || !builtins.isInt (locked.version or null)
       || (locked.version or null) != 1
       || (locked.tool or null) != tool
       || (locked.configuration or null) != configuration

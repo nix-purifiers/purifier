@@ -46,7 +46,7 @@ class ImplementationTests(unittest.TestCase):
     def test_unknown_envelope_and_wrong_project_rejected(self):
         pin = {"version": 1, "tool": "npm-purifier", "source": source()}
         implementation.validate_pin(pin, "npm-purifier")
-        for bad in [dict(pin, version=2), dict(pin, tool="sbt-purifier"),
+        for bad in [dict(pin, version=2), dict(pin, version=1.0), dict(pin, version=True), dict(pin, tool="sbt-purifier"),
                     dict(pin, executable="arbitrary")]:
             with self.assertRaises(ValueError):
                 implementation.validate_pin(bad, "npm-purifier")
