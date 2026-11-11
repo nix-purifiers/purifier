@@ -62,6 +62,13 @@ let
           old.ncurses
           old.readline
         ];
+        # The older non-cross builder duplicated this list before overriding.
+        nativeBuildInputs = [
+          old.zlib
+          openssl
+          old.ncurses
+          old.readline
+        ];
       };
 in
 {
