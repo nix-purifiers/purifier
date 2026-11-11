@@ -35,7 +35,8 @@ let
         export RUBYLIB="$out/packages/racc/lib:$out/packages/raccrt/lib"
         unset RUBYOPT GEM_HOME GEM_PATH
         ${generator}/bin/ruby -e 'raise unless RUBY_VERSION=="1.8.0";raise if defined?(Gem);puts [RUBY_VERSION,RUBY_RELEASE_DATE,RUBY_PLATFORM].join("|")' > "$out/generated/generator-runtime.txt"
-        ${generator}/bin/ruby "$out/packages/racc/bin/racc" -o "$out/generated/calc.rb" "$out/packages/racc/sample/calc.y" > "$out/generated/generator.stdout" 2> "$out/generated/generator.stderr"
+        # Original documented option avoids random line-conversion eval labels.
+        ${generator}/bin/ruby "$out/packages/racc/bin/racc" --no-line-convert -o "$out/generated/calc.rb" "$out/packages/racc/sample/calc.y" > "$out/generated/generator.stdout" 2> "$out/generated/generator.stderr"
       '';
   selected = builtins.head (
     purifier.projectInputs {

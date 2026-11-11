@@ -12,6 +12,17 @@ import sys
 import tarfile
 import tempfile
 
+def compiler_version_ok(raw):
+    lines = raw.splitlines()
+    return bool(lines) and lines[0].split()[-1:] == [b'4.8.3']
+
+
+if len(sys.argv) == 4 and sys.argv[1] == '--compiler-version-control':
+    assert compiler_version_ok(sys.argv[2].encode()) == (sys.argv[3] == 'accept')
+    print('compiler version control passed: ' + sys.argv[3])
+    raise SystemExit(0)
+
+
 input_file, closure_file, helper, nix, out = map(Path, sys.argv[1:])
 inputs = json.loads(input_file.read_text())
 paths = {key: Path(value) for key, value in inputs.items() if key not in (
@@ -103,7 +114,10 @@ with tempfile.TemporaryDirectory(prefix='ruby160-resource-') as tmp:
     compiler = paths['compiler'] / 'bin/gcc'
     version, _ = run('compiler-version', [compiler, '--version'])
     target, _ = run('compiler-target', [compiler, '-dumpmachine'])
-    assert b'4.8.3' in version and target.strip() == b'i686-pc-linux-gnu'
+    assert compiler_version_ok(version) and target.strip() == b'i686-pc-linux-gnu'
+    for label, bad in [('suffix', '4.8.30'), ('prefix', '14.8.3')]:
+        run('compiler-reject-' + label, [sys.executable, '-B', __file__,
+            '--compiler-version-control', 'gcc (GCC) ' + bad, 'reject'])
     receipt['compilerRole'] = 'Original runtime build toolchain, not a project native extension compiler proof'
     closure = closure_file.read_text().splitlines()
     assert closure == sorted(set(closure)) and closure
@@ -154,6 +168,7 @@ with tempfile.TemporaryDirectory(prefix='ruby160-resource-') as tmp:
     shutil.copyfile(closure_file, out / 'closure-paths')
     receipt.update(complete=True, archiveVersion='1.4.4', runtimeVersion='1.4.3',
                    generatorRuby='1.8.0', consumerRuby='1.6.0', runtimeType='ruby',
+                   generatorOption='--no-line-convert; diagnostic locations refer to generated file',
                    temporaryOriginalExportRootAbsent=True,
                    immutableProducerAndProjectionRetained=True,
                    generator160='FAILED original SymbolTable lookup; no workaround',

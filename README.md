@@ -843,7 +843,8 @@ separate outputs with their own package manifests and runtime dependencies.
 The Linux i686 test in `tests/ruby160` exercises the existing
 `resourceProjections` and `projectInputs` APIs with original Ruby 1.6.0
 (2000-09-19). An original Ruby 1.8.0 producer runs the upstream Racc 1.4.4
-generator; the 1.6.0 consumer loads its unchanged pure Ruby runtime (which
+generator with its documented `--no-line-convert` option (diagnostic locations
+refer to the generated file); the 1.6.0 consumer loads its unchanged pure Ruby runtime (which
 reports 1.4.3) and executes the generated upstream calculator before and after
 relocation. The test checks catalog bytes, loaded origins and the native closure.
 Racc's generator itself fails on 1.6.0 with a `SymbolTable` lookup error; that
