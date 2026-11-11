@@ -28,8 +28,33 @@ let
       pkgs.writeShellScriptBin "fixture" "echo ${toString answer}"
     ) { }
   );
+  configuredConstructor = pkgs.lib.makeOverridable (
+    {
+      answer ? 42,
+    }:
+    (selected.withConfiguration { inherit answer; }).wrap (
+      pkgs.writeShellScriptBin "fixture" "echo ${toString answer}"
+    )
+  ) { };
+  configuredOverride = configuredConstructor.override { answer = 43; };
+  metadataOnly = package.overrideAttrs (old: {
+    meta = (old.meta or { }) // {
+      priority = 7;
+    };
+  });
+
 in
 assert selected.check selected.pin true;
+assert !(builtins.tryEval ((overridable.override { answer = 43; }).drvPath)).success;
+assert
+  !(builtins.tryEval (
+    (package.overrideAttrs (old: {
+      buildCommand = (old.buildCommand or "") + "\necho changed";
+    })).drvPath
+  )).success;
+assert metadataOnly.drvPath == package.drvPath && metadataOnly.meta.priority == 7;
+assert configuredOverride.implementation.source == selected.identity;
+assert configuredOverride.implementation.configuration == { answer = 43; };
 assert !(builtins.tryEval (selected.check (selected.pin // { version = 1.0; }) true)).success;
 assert configured.check configured.pin true;
 assert configured.withoutIdentity.identity == null;
@@ -68,7 +93,7 @@ assert overridden.identity == null;
 assert !(builtins.tryEval (overridden.check selected.pin true)).success;
 pkgs.runCommand "purifier-implementation-package" { nativeBuildInputs = [ pkgs.python3 ]; } ''
   test "$(${package}/bin/fixture)" = 42
-  test "$(${overridable.override { answer = 43; }}/bin/fixture)" = 43
+  test "$(${configuredOverride}/bin/fixture)" = 43
   python - ${package}/share/purifier/implementation.json <<'PY'
   import json,sys
   manifest=json.load(open(sys.argv[1]))

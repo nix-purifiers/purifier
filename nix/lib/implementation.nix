@@ -52,23 +52,55 @@ let
       system = pkgs.stdenv.hostPlatform.system;
     }
   );
+  # The runtime script may embed this helper's manifest path. Relabeling only
+  # an outer join cannot rebind that script, so unknown recipe changes fail
+  # rather than pretending the source's default constructor reproduces them.
   wrapPackage =
     package:
-    (pkgs.symlinkJoin {
-      name = package.name;
-      paths = [ package ];
-      postBuild = ''
-        mkdir -p "$out/share/purifier"
-        ln -s ${manifest} "$out/share/purifier/implementation.json"
-      '';
-      meta = package.meta or { };
-      passthru = (package.passthru or { }) // {
-        implementation = pin;
+    let
+      wrapped = pkgs.symlinkJoin {
+        name = package.name;
+        paths = [ package ];
+        postBuild = ''
+          mkdir -p "$out/share/purifier"
+          ln -s ${manifest} "$out/share/purifier/implementation.json"
+        '';
+        meta = package.meta or { };
+        passthru = (package.passthru or { }) // {
+          implementation = pin;
+        };
       };
-    })
-    // lib.optionalAttrs (package ? override) {
-      override = args: wrapPackage (package.override args);
-    };
+      changedRecipe = throw "${tool}: configure this package inside a source-owned constructor before wrapping it; an outer override cannot preserve its implementation identity";
+      guard =
+        value:
+        value
+        // {
+          override =
+            overrides:
+            if !(package ? override) then
+              changedRecipe
+            else
+              let
+                changed = package.override overrides;
+              in
+              if changed.drvPath == package.drvPath then wrapPackage changed else changedRecipe;
+          overrideAttrs =
+            changes:
+            let
+              changed = value.overrideAttrs changes;
+            in
+            if changed.drvPath == value.drvPath then guard changed else changedRecipe;
+        }
+        // lib.optionalAttrs (value ? overrideDerivation) {
+          overrideDerivation =
+            changes:
+            let
+              changed = value.overrideDerivation changes;
+            in
+            if changed.drvPath == value.drvPath then guard changed else changedRecipe;
+        };
+    in
+    guard wrapped;
   validLockedSource = (import ./implementation-source.nix).valid;
 in
 assert lib.assertMsg (
