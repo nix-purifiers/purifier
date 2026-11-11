@@ -461,6 +461,7 @@ in
         export RUBYGEMS_PROJECTOR=${../tools}/rubygems_repository.rb
         ruby ${./rubygems/historical_repository.rb}
         ${pkgs.python3}/bin/python3 ${./rubygems/codec_native.py} ${pkgs.ruby} ${../tools}/rubygems_repository.rb
+        ${pkgs.python3}/bin/python3 ${./rubygems/dependency_wire.py} ${pkgs.ruby} ${../tools}/rubygems_repository.rb
         ${pkgs.python3}/bin/python3 ${./rubygems/codec_epoch.py} ${pkgs.ruby} --codec ${../tools}/rubygems_codec.rb
         touch $out
       '';
