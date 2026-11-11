@@ -12,6 +12,11 @@ require File.expand_path("rubygems_version_scheme.rb", File.dirname(__FILE__)) u
 
 specification = JSON.parse(File.read(ARGV.fetch(0)))
 version_scheme, native_sdk_identity, native_index_identity = PurifierRubyGemsVersionScheme.configuration(specification)
+native_index_profile = PurifierRubyGemsVersionScheme.index_configuration(specification)
+if native_index_profile
+  require File.expand_path("rubygems_consumer_sdk_contract", File.dirname(__FILE__)) unless defined?(PurifierRubyGemsConsumerSDKContract)
+  PurifierRubyGemsConsumerSDKContract.read!(specification.fetch("nativeConsumerAttestation"), native_sdk_identity)
+end
 destination = ARGV.fetch(1)
 catalog_path = ARGV.fetch(2)
 intrinsics = {}
@@ -29,7 +34,7 @@ specification.fetch("dependencies", []).each do |input|
   catalog = JSON.parse(File.read(input.fetch("catalog")))
   catalog.fetch("intrinsics", []).each { |entry| add_intrinsic(intrinsics, entry) }
   catalog.fetch("packages").each do |entry|
-    PurifierRubyGemsVersionScheme.validate_provided!(entry, version_scheme, native_sdk_identity, native_index_identity)
+    PurifierRubyGemsVersionScheme.validate_provided!(entry, version_scheme, native_sdk_identity, native_index_identity, native_index_profile)
     archive = File.join(input.fetch("repository"), entry.fetch("archive"))
     actual = "sha512-#{Base64.encode64(Digest::SHA512.file(archive).digest).delete("\n")}"
     raise "RubyGems input archive integrity mismatch: #{archive}" unless actual == entry.fetch("integrity")
@@ -111,6 +116,7 @@ versions = Hash[packages.map do |archive, spec, provided|
     if version_scheme == PurifierRubyGemsVersionScheme::NUMERIC
       identity_payload = [version_scheme, native_sdk_identity, native_index_identity, identity_payload]
     end
+    identity_payload = ["native-index-profile-v1", native_index_profile, identity_payload] if native_index_profile
     fingerprint = Digest::SHA256.hexdigest(PurifierRubyGemsCodec.json(identity_payload))
     fingerprints[spec.name] = fingerprint
     [spec.name, PurifierRubyGemsVersionScheme.version(spec.version.to_s, fingerprint, version_scheme)]
@@ -119,7 +125,7 @@ end]
 
 intrinsics.each { |name, entry| versions[name] = entry.fetch("version") }
 FileUtils.mkdir_p(File.join(destination, "gems"))
-FileUtils.mkdir_p(File.join(destination, "quick", "Marshal.4.8"))
+FileUtils.mkdir_p(File.join(destination, "quick", "Marshal.4.8")) unless native_index_profile
 entries = []
 index_entries = []
 packages.each do |archive, original, provided|
@@ -177,6 +183,11 @@ packages.each do |archive, original, provided|
       entry["nativeSdkIdentity"] = native_sdk_identity
       entry["nativeIndexIdentity"] = native_index_identity
       entry["versionFingerprint"] = fingerprints.fetch(spec.name)
+      if native_index_profile
+        PurifierRubyGemsVersionScheme::INDEX_FIELDS.each_with_index do |key, position|
+          entry[key] = native_index_profile[position]
+        end
+      end
     end
     entries << entry
   end

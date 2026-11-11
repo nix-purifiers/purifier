@@ -457,10 +457,15 @@ in
         cp ${../tools/rubygems_repository.rb} tools/rubygems_repository.rb
         cp ${../tools/rubygems_codec.rb} tools/rubygems_codec.rb
         cp ${../tools/rubygems_version_scheme.rb} tools/rubygems_version_scheme.rb
+        cp ${../tools/rubygems_consumer_sdk.py} tools/rubygems_consumer_sdk.py
         cp ${./rubygems/test_repository.rb} tests/rubygems/test_repository.rb
         cp ${./rubygems/version_scheme.rb} tests/rubygems/version_scheme.rb
+        cp ${./rubygems/index_profile.rb} tests/rubygems/index_profile.rb
+        cp ${./rubygems/consumer_sdk_runner.py} tests/rubygems/consumer_sdk_runner.py
         export HOME=$TMPDIR
         ruby tests/rubygems/version_scheme.rb
+        ruby tests/rubygems/index_profile.rb
+        ${pkgs.python3}/bin/python3 -B tests/rubygems/consumer_sdk_runner.py
         ruby tests/rubygems/test_repository.rb
         export RUBYGEMS_PROJECTOR=${../tools}/rubygems_repository.rb
         ruby ${./rubygems/historical_repository.rb}

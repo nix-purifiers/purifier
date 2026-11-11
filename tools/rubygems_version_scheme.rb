@@ -4,8 +4,23 @@ require "base64"
 module PurifierRubyGemsVersionScheme
   DEFAULT = "nix-prerelease-v1"
   NUMERIC = "legacy-numeric-v1"
+  INDEX_094 = "ruby182-rubygems094-v1"
+  INDEX_FIELDS = %w[nativeIndexProfile nativeIndexEncoderIdentity nativeConsumerAttestationIdentity]
+
+  def self.index_configuration(specification)
+    present = INDEX_FIELDS.select { |key| specification.key?(key) }
+    return nil if present.empty?
+    raise "incomplete native index profile" unless present == INDEX_FIELDS
+    raise "unsupported native index profile" unless specification["nativeIndexProfile"] == INDEX_094
+    raise "native index profile requires numeric versions" unless specification["versionScheme"] == NUMERIC
+    INDEX_FIELDS[1..-1].each do |key|
+      raise "invalid native index profile identity" unless specification[key].is_a?(String) && specification[key] =~ /\A[0-9a-f]{64}\z/
+    end
+    INDEX_FIELDS.map { |key| specification.fetch(key) }
+  end
 
   def self.configuration(specification)
+    index_configuration(specification)
     scheme = specification.fetch("versionScheme", DEFAULT)
     raise "unsupported RubyGems version scheme" unless [DEFAULT, NUMERIC].include?(scheme)
     identity = specification["nativeSdkIdentity"]
@@ -42,7 +57,8 @@ module PurifierRubyGemsVersionScheme
     source + ".1." + (fingerprint.to_i(16) + 1).to_s
   end
 
-  def self.validate_provided!(entry, scheme, identity, index_identity = nil)
+  def self.validate_provided!(entry, scheme, identity, index_identity = nil, index_profile = nil)
+    raise "provided RubyGems index profile differs" unless index_configuration(entry) == index_profile
     provided_scheme = entry.fetch("versionScheme", DEFAULT)
     raise "incompatible provided RubyGems version scheme" unless provided_scheme == scheme
     if scheme == NUMERIC
