@@ -42,6 +42,20 @@ let
       priority = 7;
     };
   });
+  embedded = selected.wrap (
+    pkgs.lib.makeOverridable (
+      {
+        marker ? 42,
+      }:
+      pkgs.writeShellScriptBin "fixture-purifier" ''
+        # Native script variant ${toString marker}; the bootstrap path is embedded.
+        if [ "''${1:-}" = implementation-relock ]; then exit 0; fi
+        exec ${pkgs.python3}/bin/python ${selected.tool} self-update \
+          --config ${selected.manifest} --lockfile "$PWD/bootstrap.lock" \
+          --installed-command "$0" --to installed
+      ''
+    ) { }
+  );
 
 in
 assert selected.check selected.pin true;
@@ -50,6 +64,14 @@ assert
   !(builtins.tryEval (
     (package.overrideAttrs (old: {
       buildCommand = (old.buildCommand or "") + "\necho changed";
+    })).drvPath
+  )).success;
+assert !(builtins.tryEval ((embedded.override { marker = 43; }).drvPath)).success;
+assert
+  !(package ? overrideDerivation)
+  || !(builtins.tryEval (
+    (package.overrideDerivation (_: {
+      name = "changed-recipe";
     })).drvPath
   )).success;
 assert metadataOnly.drvPath == package.drvPath && metadataOnly.meta.priority == 7;
@@ -100,6 +122,18 @@ pkgs.runCommand "purifier-implementation-package" { nativeBuildInputs = [ pkgs.p
   assert manifest['source']['rev']=='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   assert manifest['tool']=='fixture-purifier'
   assert manifest['bootstrapVersion']==1
+  PY
+  python - ${selected.tool} <<'PY'
+  import importlib.util
+  spec=importlib.util.spec_from_file_location("bootstrap",__import__('sys').argv[1])
+  bootstrap=importlib.util.module_from_spec(spec);spec.loader.exec_module(bootstrap)
+  open('bootstrap.lock','w').write(bootstrap.render_lock({'version':3,'hash':""},'npm'))
+  PY
+  ${embedded}/bin/fixture-purifier
+  python - <<'PY'
+  import json
+  value=json.load(open('bootstrap.lock'))
+  assert value['implementation']['source']['rev']=='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   PY
   touch "$out"
 ''
