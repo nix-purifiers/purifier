@@ -188,6 +188,24 @@ class ImplementationTests(unittest.TestCase):
             self.assertEqual(native.read_text(), "private dependency lock")
             self.assertEqual(native.stat().st_mode & 0o777, 0o600)
 
+    def test_explicit_update_preserves_lock_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            target = directory / "real.json"
+            target.write_text(implementation.render_lock({"version": 3, "hash": ""}, "npm"))
+            alias = directory / "lock.json"
+            alias.symlink_to(target)
+            config = directory / "installed.json"
+            config.write_text(json.dumps({"tool": "npm-purifier", "source": source(),
+                                          "checksum": "npm", "lockVersions": [3]}))
+            program = directory / "purifier"
+            program.write_text("#!" + sys.executable + "\n")
+            program.chmod(0o755)
+            implementation.run(SimpleNamespace(config=config, lockfile=alias, action="self-update",
+                                               to="installed", installed_command=str(program), native_lockfile=None))
+            self.assertTrue(alias.is_symlink())
+            self.assertEqual(implementation.read_lock(target.read_text(), "npm")["implementation"]["source"], source())
+
     def test_installed_update_cannot_change_pinned_dispatch(self):
         # Unit boundary: Nix source/package resolution is replaced here. The
         # selected package, manifest, checksum and emitted executable are real.

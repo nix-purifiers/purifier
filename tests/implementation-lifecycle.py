@@ -179,6 +179,8 @@ def main():
         roots = list(project.glob("*.gcroots/implementation-*"))
         assert roots and all(path.is_symlink() and path.exists() for path in roots)
         receipt = {"sources": sources, "packages": list(map(str, packages)),
+                   "bootstrap": str(args.bootstrap),
+                   "bootstrapSha256": hashlib.sha256(Path(args.bootstrap).read_bytes()).hexdigest(),
                    "derivations": [command(["nix-store", "--query", "--deriver", package]).stdout.strip() for package in packages],
                    "lockedMarker": 42, "updatedMarker": 43, "restoredMarker": 42,
                    "originalLockSha256": hashlib.sha256(original_lock).hexdigest(),
