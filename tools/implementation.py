@@ -209,7 +209,7 @@ def resolve_package(pin, config, entry, lockfile):
                   + "in builtins.seq verified.outPath flake.packages."
                   + nix_string(config["system"]) + "." + nix_string(entry))
     key = hashlib.sha256(json.dumps(pin, sort_keys=True).encode()).hexdigest()
-    gc_root = Path(str(lockfile) + ".gcroots") / ("implementation-" + key + "-" + entry)
+    gc_root = Path(lockfile).parent / ("." + config["tool"]) / "implementations" / ("implementation-" + key + "-" + entry)
     gc_root.parent.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(["nix", "build", "--out-link", str(gc_root.absolute()), "--print-out-paths", "--no-write-lock-file",
                              "--expr", expression], check=True, stdout=subprocess.PIPE, text=True)

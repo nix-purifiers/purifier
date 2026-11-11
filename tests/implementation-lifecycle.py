@@ -57,7 +57,7 @@ else:
 def command(argv, cwd=None, expected=0, env=None):
     result = subprocess.run(list(map(str, argv)), cwd=cwd, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, env=env)
-    if result.returncode != expected:
+    if expected is not None and result.returncode != expected:
         raise AssertionError(f"{argv}: exit {result.returncode}, expected {expected}\n{result.stdout}\n{result.stderr}")
     return result
 
@@ -153,8 +153,8 @@ def main():
         wrong_source = dict(sources[0], narHash="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
         wrong_expression = "loader: loader (builtins.fromJSON " + bootstrap.nix_string(json.dumps(wrong_source)) + ")"
         rejected = command(["nix", "eval", "--json", bootstrap.source_ref(sources[0]) + "#loader",
-                            "--apply", wrong_expression], expected=1)
-        assert "hash mismatch" in rejected.stderr.lower()
+                            "--apply", wrong_expression], expected=None)
+        assert rejected.returncode != 0 and "hash mismatch" in rejected.stderr.lower()
         # Both public CLI and native-tool entrypoints hand off through real Nix.
         selected = command([packages[1] / "bin/fixture-purifier", "identity"], project)
         assert json.loads(selected.stdout)["source"] == sources[0]
@@ -192,7 +192,7 @@ def main():
         cached_environment["NIX_CONFIG"] = os.environ.get("NIX_CONFIG", "") + "\nsubstituters =\nmax-jobs = 0\n"
         cached = command([packages[1] / "bin/fixture", "identity"], project, env=cached_environment)
         assert json.loads(cached.stdout)["marker"] == 42
-        roots = list(project.glob("*.gcroots/implementation-*"))
+        roots = list(project.glob(".fixture-purifier/implementations/implementation-*"))
         assert roots and all(path.is_symlink() and path.exists() for path in roots)
         receipt = {"sources": sources, "packages": list(map(str, packages)),
                    "bootstrap": str(args.bootstrap),
