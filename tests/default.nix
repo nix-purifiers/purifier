@@ -456,8 +456,11 @@ in
         mkdir -p tools tests/rubygems
         cp ${../tools/rubygems_repository.rb} tools/rubygems_repository.rb
         cp ${../tools/rubygems_codec.rb} tools/rubygems_codec.rb
+        cp ${../tools/rubygems_version_scheme.rb} tools/rubygems_version_scheme.rb
         cp ${./rubygems/test_repository.rb} tests/rubygems/test_repository.rb
+        cp ${./rubygems/version_scheme.rb} tests/rubygems/version_scheme.rb
         export HOME=$TMPDIR
+        ruby tests/rubygems/version_scheme.rb
         ruby tests/rubygems/test_repository.rb
         export RUBYGEMS_PROJECTOR=${../tools}/rubygems_repository.rb
         ruby ${./rubygems/historical_repository.rb}

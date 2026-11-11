@@ -8,12 +8,12 @@ require "tmpdir"
 require "zlib"
 require "digest"
 require "base64"
+require File.expand_path("rubygems_version_scheme.rb", File.dirname(__FILE__))
 
 specification = JSON.parse(File.read(ARGV.fetch(0)))
+version_scheme, native_sdk_identity = PurifierRubyGemsVersionScheme.configuration(specification)
 destination = ARGV.fetch(1)
 catalog_path = ARGV.fetch(2)
-FileUtils.mkdir_p(File.join(destination, "gems"))
-FileUtils.mkdir_p(File.join(destination, "quick", "Marshal.4.8"))
 intrinsics = {}
 
 def add_intrinsic(intrinsics, entry)
@@ -29,6 +29,7 @@ specification.fetch("dependencies", []).each do |input|
   catalog = JSON.parse(File.read(input.fetch("catalog")))
   catalog.fetch("intrinsics", []).each { |entry| add_intrinsic(intrinsics, entry) }
   catalog.fetch("packages").each do |entry|
+    PurifierRubyGemsVersionScheme.validate_provided!(entry, version_scheme, native_sdk_identity)
     archive = File.join(input.fetch("repository"), entry.fetch("archive"))
     actual = "sha512-#{Base64.encode64(Digest::SHA512.file(archive).digest).delete("\n")}"
     raise "RubyGems input archive integrity mismatch: #{archive}" unless actual == entry.fetch("integrity")
@@ -77,6 +78,7 @@ raise "missing Nix producer identity" if suffix.empty?
 # identical prepared dependency without coupling its version to unrelated roots.
 raise "Ruby SDK dependency is also supplied as an independent gem" if packages.any? { |_, spec, _| intrinsics.key?(spec.name) }
 by_name = Hash[packages.map { |archive, spec, provided| [spec.name, [archive, spec, provided]] }]
+fingerprints = {}
 versions = Hash[packages.map do |archive, spec, provided|
   if provided
     [spec.name, spec.version.to_s]
@@ -105,13 +107,21 @@ versions = Hash[packages.map do |archive, spec, provided|
       [name, item_spec.version.to_s, item_spec.platform.to_s, seed, item_spec.runtime_dependencies.map { |dependency| [dependency.name, dependency.requirement.to_s] }.sort]
     end
     sdk_dependencies = reachable.values.map { |_, value, provided| provided unless value }.select { |entry| entry }
-    fingerprint = Digest::SHA256.hexdigest(PurifierRubyGemsCodec.json([specification.fetch("projectorIdentity", "rubygems-v1"), graph, sdk_dependencies]))
-    [spec.name, "#{spec.version}.1.nix.h#{fingerprint}"]
+    identity_payload = [specification.fetch("projectorIdentity", "rubygems-v1"), graph, sdk_dependencies]
+    if version_scheme == PurifierRubyGemsVersionScheme::NUMERIC
+      identity_payload = [version_scheme, native_sdk_identity, identity_payload]
+    end
+    fingerprint = Digest::SHA256.hexdigest(PurifierRubyGemsCodec.json(identity_payload))
+    fingerprints[spec.name] = fingerprint
+    [spec.name, PurifierRubyGemsVersionScheme.version(spec.version.to_s, fingerprint, version_scheme)]
   end
 end]
 
 intrinsics.each { |name, entry| versions[name] = entry.fetch("version") }
+FileUtils.mkdir_p(File.join(destination, "gems"))
+FileUtils.mkdir_p(File.join(destination, "quick", "Marshal.4.8"))
 entries = []
+index_entries = []
 packages.each do |archive, original, provided|
   Dir.mktmpdir("rubygems-projection-") do |directory|
     package = Gem::Package.new(archive)
@@ -155,14 +165,23 @@ packages.each do |archive, original, provided|
     FileUtils.cp(source_archive, File.join(destination, "gems", filename))
     quick = File.join(destination, "quick", "Marshal.4.8", "#{spec.original_name}.gemspec.rz")
     File.open(quick, "wb") { |file| file.write(Zlib::Deflate.deflate(Marshal.dump(spec))) } unless ENV["PURIFIER_RUBYGEMS_SEPARATE_INDEX"] == "1"
-    entries << { "name" => spec.name, "version" => spec.version.to_s,
+    entry = { "name" => spec.name, "version" => spec.version.to_s,
                  "sourceVersion" => provided ? provided.fetch("sourceVersion") : original.version.to_s, "platform" => spec.platform.to_s,
                  "integrity" => "sha512-#{Base64.encode64(Digest::SHA512.file(source_archive).digest).delete("\n")}",
                  "archive" => "gems/#{filename}" }
+    index_entries << entry
+    if provided
+      entry = provided.dup
+    elsif version_scheme == PurifierRubyGemsVersionScheme::NUMERIC
+      entry["versionScheme"] = version_scheme
+      entry["nativeSdkIdentity"] = native_sdk_identity
+      entry["versionFingerprint"] = fingerprints.fetch(spec.name)
+    end
+    entries << entry
   end
 end
 unless ENV["PURIFIER_RUBYGEMS_SEPARATE_INDEX"] == "1"
-specs = entries.map { |entry| [entry.fetch("name"), Gem::Version.new(entry.fetch("version")), entry.fetch("platform")] }.sort
+specs = index_entries.map { |entry| [entry.fetch("name"), Gem::Version.new(entry.fetch("version")), entry.fetch("platform")] }.sort
 {
   "specs" => specs.reject { |_, version, _| version.prerelease? },
   "latest_specs" => specs.reject { |_, version, _| version.prerelease? }.group_by { |name, _, platform| [name, platform] }.values.map { |values| values.max_by { |_, version, _| version } }.sort,

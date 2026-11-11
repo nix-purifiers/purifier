@@ -14,7 +14,20 @@ in
   indexRuby ? ruby,
   runCommand,
   name ? "rubygems-projection",
+  versionScheme ? "nix-prerelease-v1",
+  nativeSdkIdentity ? null,
 }:
+assert lib.assertMsg (builtins.elem versionScheme [
+  "nix-prerelease-v1"
+  "legacy-numeric-v1"
+]) "unsupported RubyGems version scheme";
+assert lib.assertMsg (
+  if versionScheme == "legacy-numeric-v1" then
+    builtins.isString nativeSdkIdentity
+    && builtins.match "sha256-[A-Za-z0-9+/]{43}=" nativeSdkIdentity != null
+  else
+    nativeSdkIdentity == null
+) "numeric RubyGems projection requires an exact SDK identity";
 let
   selected = projectInputs {
     inherit dependencies;
@@ -27,6 +40,7 @@ let
   toolchain = runCommand "rubygems-projector-toolchain" {
     projector = ../../tools/rubygems_repository.rb;
     codec = ../../tools/rubygems_codec.rb;
+    versionSchemes = ../../tools/rubygems_version_scheme.rb;
     indexer = ../../tools/rubygems_index.rb;
     indexRuntime = indexRuby;
     nativeBuildInputs = [ ruby ];
@@ -47,6 +61,7 @@ let
     producerIdentity = (inputIdentity producer).hash;
     projector = ../../tools/rubygems_repository.rb;
     codec = ../../tools/rubygems_codec.rb;
+    versionSchemes = ../../tools/rubygems_version_scheme.rb;
     indexer = ../../tools/rubygems_index.rb;
     indexRuntime = indexRuby;
     nativeBuildInputs = [ ruby ];
@@ -61,17 +76,22 @@ let
           "metadata"
         ];
         nativeBuildInputs = [ ruby ];
-        spec = builtins.toJSON {
-          identity = (inputIdentity identity).hash;
-          inherit
-            archives
-            archiveIdentities
-            roots
-            intrinsics
-            ;
-          projectorIdentity = (inputIdentity toolchain).hash;
-          dependencies = repositories;
-        };
+        spec = builtins.toJSON (
+          {
+            identity = (inputIdentity identity).hash;
+            inherit
+              archives
+              archiveIdentities
+              roots
+              intrinsics
+              ;
+            projectorIdentity = (inputIdentity toolchain).hash;
+            dependencies = repositories;
+          }
+          // lib.optionalAttrs (versionScheme != "nix-prerelease-v1" || nativeSdkIdentity != null) {
+            inherit versionScheme nativeSdkIdentity;
+          }
+        );
         passAsFile = [ "spec" ];
         passthru.catalog = "${projection.metadata}/catalog.json";
       }
