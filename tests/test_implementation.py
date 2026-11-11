@@ -84,6 +84,8 @@ class ImplementationTests(unittest.TestCase):
     def test_duplicate_json_fields_fail_before_dispatch(self):
         with self.assertRaisesRegex(ValueError, "duplicate JSON"):
             implementation.read_lock('{"version":3,"version":3}', "npm")
+        with self.assertRaisesRegex(ValueError, "invalid JSON constant"):
+            implementation.read_lock('{"version":3,"other":NaN}', "npm")
 
     def test_selected_package_must_confirm_identity(self):
         config = {"tool": "npm-purifier", "source": source(), "bootstrapVersion": 1,

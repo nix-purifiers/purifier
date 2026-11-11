@@ -79,7 +79,10 @@ def read_lock(text, checksum):
             result[key] = item
         return result
 
-    value = json.loads(text, object_pairs_hook=unique_fields)
+    def invalid_constant(name):
+        raise ValueError("invalid JSON constant in purifier lock: " + name)
+
+    value = json.loads(text, object_pairs_hook=unique_fields, parse_constant=invalid_constant)
     if not isinstance(value, dict):
         raise ValueError("purifier lock must be an object")
     if checksum == "npm":
@@ -110,14 +113,14 @@ def render_lock(value, checksum):
         value["implementation"] = envelope
     if checksum == "npm":
         value["hash"] = ""
-        text = json.dumps(value, indent=2, ensure_ascii=False) + "\n"
+        text = json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
         digest = "sha256-" + base64.b64encode(hashlib.sha256(text.encode()).digest()).decode()
         return re.sub(r'^  "hash": ""(,?)$', lambda match: '  "hash": "' + digest + '"' + match[1],
                       text, count=1, flags=re.M)
     if checksum == "sbt":
         value.pop("contentHash", None)
         value = {"version": value.pop("version"), **value}
-        text = json.dumps(value, indent=2, ensure_ascii=False) + "\n"
+        text = json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
         digest = hashlib.sha256(text.encode()).hexdigest()
         lines = text.splitlines(keepends=True)
         lines.insert(2, '  "contentHash": "' + digest + '",\n')
@@ -232,7 +235,7 @@ def installed_pin(config):
 
 def run(args):
     config = json.loads(Path(args.config).read_text())
-    path = Path(args.lockfile)
+    path = Path(args.lockfile).resolve()
     if args.action == "current":
         print(json.dumps(installed_pin(config), separators=(",", ":")))
         return
