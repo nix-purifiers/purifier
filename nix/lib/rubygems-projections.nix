@@ -51,10 +51,23 @@ let
     probe = ../../tools/rubygems_consumer_sdk_probe.rb;
     contract = ../../tools/rubygems_consumer_sdk_contract.rb;
   } "touch $out";
+  # Nix itself exports the actual executed SDK's references. Do not trust a
+  # caller-provided list or the SDK's consumerClosure passthru for this join.
+  sdk094Closure =
+    runCommand "rubygems094-authoritative-sdk-closure"
+      {
+        __structuredAttrs = true;
+        exportReferencesGraph.consumerSdk = [ legacyIndexRuby ];
+      }
+      ''
+        out=''${outputs[out]}
+        ${ruby}/bin/ruby -r json -e 'document=JSON.parse(File.read(ENV.fetch("NIX_ATTRS_JSON_FILE"))); puts document.fetch("consumerSdk").map { |entry| entry.fetch("path") }.sort' > "$out"
+      '';
   indexProfileFields = lib.optionalAttrs sdk094 {
     nativeIndexProfile = legacyIndexProfile;
     nativeIndexEncoderIdentity = (inputIdentity sdk094Encoder).hash;
     nativeConsumerAttestationIdentity = (inputIdentity legacyIndexAttestation).hash;
+    nativeIndexClosureIdentity = (inputIdentity sdk094Closure).hash;
     nativeConsumerAttestation = toString legacyIndexAttestation;
   };
   selected = projectInputs {
@@ -81,6 +94,7 @@ let
     // lib.optionalAttrs sdk094 {
       consumerAttestation = legacyIndexAttestation;
       consumerSdkContract = ../../tools/rubygems_consumer_sdk_contract.rb;
+      consumerClosure = sdk094Closure;
       indexProfile = legacyIndexProfile;
     }
   ) "touch $out";
@@ -139,7 +153,7 @@ let
       }
       ''
         ${lib.optionalString sdk094 ''
-          ${legacyIndexRuby}/bin/purifier-verify-consumer-sdk ${lib.escapeShellArg (toString legacyIndexAttestation)} ${legacyIndexRuby}/bin/ruby
+          ${legacyIndexRuby}/bin/purifier-verify-consumer-sdk ${lib.escapeShellArg (toString legacyIndexAttestation)} ${legacyIndexRuby}/bin/ruby ${sdk094Closure}
         ''}
         PURIFIER_RUBYGEMS_CODEC_PRELOADED=1 PURIFIER_RUBYGEMS_VERSION_SCHEME_PRELOADED=1 PURIFIER_RUBYGEMS_SEPARATE_INDEX=1 \
           ${ruby}/bin/ruby -r ${../../tools/rubygems_codec.rb} -r ${../../tools/rubygems_version_scheme.rb} ${lib.optionalString sdk094 "-r ${../../tools/rubygems_consumer_sdk_contract.rb}"} ${../../tools/rubygems_repository.rb} "$specPath" \

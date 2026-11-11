@@ -10,8 +10,8 @@
   name ? "ruby182-rubygems094-consumer-sdk",
 }:
 let
-  # Read the actual derivation files without realizing every historical
-  # compiler bootstrap output. This does not change index inputIdentity.
+  # Retain actual derivation bytes without realizing unrelated bootstrap
+  # outputs. Index SDK/encoder/attestation inputIdentity contexts stay intact.
   captureDerivation =
     label: path:
     pkgs.writeText label (
@@ -36,45 +36,41 @@ let
       }) components;
     }
   );
-  closure = pkgs.closureInfo {
-    rootPaths = [
-      sdk
-      compiler
-      nativeBuildDerivation
-      compilerDerivation
-    ]
-    ++ lib.concatMap (item: [
-      item.archive
-      item.library
-    ]) components;
-  };
-in
-pkgs.runCommand name
-  {
-    nativeBuildInputs = [
-      pkgs.python3
-      pkgs.nix
-    ];
-    passthru.consumerAttestation = "share/purifier/consumer-sdk.json";
-  }
-  ''
-    mkdir -p "$out/bin" "$out/share/purifier"
-    ln -s ${sdk}/bin/ruby "$out/bin/ruby"
-    ln -s ${sdk}/bin/gem "$out/bin/gem"
-    cp ${descriptor} "$out/share/purifier/consumer-components.json"
-    cat > "$out/bin/purifier-verify-consumer-sdk" <<EOF
-    #!${pkgs.runtimeShell}
-    set -eu
-    export PURIFIER_CONSUMER_PROBE=${../../tools/rubygems_consumer_sdk_probe.rb}
-    exec ${pkgs.python3}/bin/python3 ${../../tools/rubygems_consumer_sdk.py} --verify \\
-      ${descriptor} ${closure}/store-paths ${pkgs.nix}/bin/nix "\$1" "\$2"
-    EOF
-    chmod +x "$out/bin/purifier-verify-consumer-sdk"
+  wrapper =
+    pkgs.runCommand name
+      {
+        passthru = {
+          consumerAttestation = "${attestation}/consumer-sdk.json";
+          consumerAttestationPackage = attestation;
+          consumerClosure = "${closure}/store-paths";
+        };
+      }
+      ''
+        mkdir -p "$out/bin" "$out/share/purifier"
+        ln -s ${sdk}/bin/ruby "$out/bin/ruby"
+        ln -s ${sdk}/bin/gem "$out/bin/gem"
+        cp ${descriptor} "$out/share/purifier/consumer-components.json"
+        cat > "$out/bin/purifier-verify-consumer-sdk" <<EOF
+        #!${pkgs.runtimeShell}
+        set -eu
+        export PURIFIER_CONSUMER_PROBE=${../../tools/rubygems_consumer_sdk_probe.rb}
+        exec ${pkgs.python3}/bin/python3 ${../../tools/rubygems_consumer_sdk.py} --verify \\
+          ${descriptor} "\$3" ${pkgs.nix}/bin/nix "\$1" "\$2"
+        EOF
+        chmod +x "$out/bin/purifier-verify-consumer-sdk"
+      '';
+  # The wrapper contains no attestation or closure-file reference. Measuring
+  # its complete runtime closure therefore creates no hash self-reference.
+  closure = pkgs.closureInfo { rootPaths = [ wrapper ]; };
+  attestation = pkgs.runCommand "${name}-attestation" { } ''
+    mkdir -p "$out"
     PURIFIER_CONSUMER_PROBE=${../../tools/rubygems_consumer_sdk_probe.rb} \
-      python3 ${../../tools/rubygems_consumer_sdk.py} ${descriptor} \
+      ${pkgs.python3}/bin/python3 ${../../tools/rubygems_consumer_sdk.py} ${descriptor} \
       ${closure}/store-paths ${pkgs.nix}/bin/nix \
-      "$out/share/purifier/consumer-sdk.json"
+      "$out/consumer-sdk.json" ${wrapper}/bin/ruby
     ${pkgs.ruby}/bin/ruby -r ${../../tools/rubygems_consumer_sdk_contract.rb} \
       -e 'PurifierRubyGemsConsumerSDKContract.read!(ARGV.fetch(0))' \
-      "$out/share/purifier/consumer-sdk.json"
-  ''
+      "$out/consumer-sdk.json"
+  '';
+in
+wrapper

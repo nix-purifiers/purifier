@@ -10,12 +10,13 @@ actual `legacyIndexRuby` reference and a separately versioned ordinary-consumer
 SDK attestation. Missing profile fields never select SDK094.
 
 New catalog fields are `nativeIndexProfile`, `nativeIndexEncoderIdentity` and
-`nativeConsumerAttestationIdentity`. They occur only under the explicit new
+`nativeConsumerAttestationIdentity`, and `nativeIndexClosureIdentity`. They occur only under the explicit new
 profile. The actual `inputIdentity legacyIndexRuby` continues to be stored as
 `nativeIndexIdentity`. No string-context normalization is introduced.
 
 The new fingerprint envelope contains profile version, encoder identity,
-attestation identity and the existing native SDK/index identities. The encoder
+attestation and authoritative closure identities and the existing native
+SDK/index identities. The encoder
 identity is the Nix input identity of a versioned encoder derivation that
 binds the writer, original-runtime probe and strict schema validator. Provided input reuse
 requires exact equality of all fields, then validates the existing complete
@@ -42,12 +43,21 @@ constructs the separate measured wrapper. Components have exactly `name`,
 `version`, `archive`, and `library`; the bounded profile requires original
 Ruby182, Gem094, sources001, JSON113, and incidental Bundler031 artifacts.
 The wrapper exposes original `ruby` and `gem` plus
-`purifier-verify-consumer-sdk ATTESTATION ACTUAL_RUBY`.
+`purifier-verify-consumer-sdk ATTESTATION ACTUAL_RUBY CLOSURE_PATHS`.
 `legacyIndexRuby` is this measured wrapper; `legacyIndexAttestation` is
-`${legacyIndexRuby}/share/purifier/consumer-sdk.json`. The verifier remeasures
+`legacyIndexRuby.consumerAttestation`, a file in a separate derivation.
+`consumerAttestationPackage` exposes that buildable artifact. The wrapper is
+built first; the attestation measures the complete wrapper closure, including
+its verifier Python/Nix runtime. The document records both the actual wrapper
+`sdk` and the original `underlyingSdk`. Keeping the attestation outside the
+wrapper prevents a hash self-reference. The verifier remeasures
 the physical closure, archives and libraries, observes the explicitly passed
 actual Ruby, and requires exact equality with the canonical document before
-projection writes. The writer independently compares the complete actual
+projection writes. Core obtains the authoritative closure directly through
+Nix `exportReferencesGraph` for the actual `legacyIndexRuby`, rather than
+trusting a caller list or the convenience `consumerClosure` passthru. The
+exporter context is explicitly fingerprinted and checked on provided inputs.
+The writer independently compares the complete actual
 native observation, including executable, installed versions/specification
 bytes and mapped parser origin, before creating indexes.
 

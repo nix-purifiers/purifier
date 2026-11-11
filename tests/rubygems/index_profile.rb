@@ -5,7 +5,7 @@ require File.expand_path("../../tools/rubygems_version_scheme",File.dirname(__FI
 scheme=PurifierRubyGemsVersionScheme
 sdk="sha256-"+[Digest::SHA256.digest("ordinary SDK fixture")].pack("m").delete("\n")
 index=Digest::SHA256.hexdigest("actual native index runtime context")
-profile={"versionScheme"=>scheme::NUMERIC,"nativeSdkIdentity"=>sdk,"nativeIndexIdentity"=>index,"nativeIndexProfile"=>scheme::INDEX_094,"nativeIndexEncoderIdentity"=>Digest::SHA256.hexdigest("encoder bundle context"),"nativeConsumerAttestationIdentity"=>Digest::SHA256.hexdigest("attestation context")}
+profile={"versionScheme"=>scheme::NUMERIC,"nativeSdkIdentity"=>sdk,"nativeIndexIdentity"=>index,"nativeIndexClosureIdentity"=>Digest::SHA256.hexdigest("authoritative closure context"),"nativeIndexProfile"=>scheme::INDEX_094,"nativeIndexEncoderIdentity"=>Digest::SHA256.hexdigest("encoder bundle context"),"nativeConsumerAttestationIdentity"=>Digest::SHA256.hexdigest("attestation context")}
 configuration=scheme.index_configuration(profile)
 raise unless scheme.configuration(profile)==[scheme::NUMERIC,sdk,index]
 raise unless scheme.index_configuration({}).nil?
@@ -30,4 +30,4 @@ scheme::INDEX_FIELDS.each do |key|
   changed=entry.merge(key=>(key=="nativeIndexProfile" ? "unknown" : "f"*64))
   rejected! {scheme.validate_provided!(changed,scheme::NUMERIC,sdk,index,configuration)}
 end
-puts "Index profile: explicit version/encoder/attestation, old omitted-profile reuse and 11 rejection controls PASS"
+puts "Index profile: explicit version/encoder/attestation, old omitted-profile reuse and #{scheme::INDEX_FIELDS.size * 2 + 5} rejection controls PASS"

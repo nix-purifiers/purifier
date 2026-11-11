@@ -96,9 +96,17 @@ def attest(descriptor, closure_file, nix, runtime_ruby=None):
         or descriptor["schemaVersion"] != 1
     ):
         raise ValueError("unsupported SDK descriptor")
-    sdk = str(Path(descriptor["sdk"]).resolve(strict=True))
+    underlying_sdk = str(Path(descriptor["sdk"]).resolve(strict=True))
+    sdk = str(Path(runtime_ruby).parent.parent) if runtime_ruby else underlying_sdk
+    if str(Path(sdk).resolve(strict=True)) != sdk:
+        raise ValueError("executed SDK root is not canonical")
     paths = Path(closure_file).read_text().splitlines()
-    if not 1 <= len(paths) <= 4096 or len(set(paths)) != len(paths) or sdk not in paths:
+    if (
+        not 1 <= len(paths) <= 4096
+        or len(set(paths)) != len(paths)
+        or sdk not in paths
+        or underlying_sdk not in paths
+    ):
         raise ValueError("invalid SDK closure")
 
     def inside(path):
@@ -268,6 +276,7 @@ def attest(descriptor, closure_file, nix, runtime_ruby=None):
         schemaVersion=1,
         profile="ruby182-rubygems094-v1",
         sdk=sdk,
+        underlyingSdk=underlying_sdk,
         observation=observation,
         components=sorted(measured, key=lambda item: item["name"]),
         compiler=dict(
@@ -315,8 +324,8 @@ if __name__ == "__main__":
                 "executed SDK/physical provenance differs from attestation"
             )
         print("ORDINARY-SDK-VERIFIED|ruby182-rubygems094-v1")
-    elif len(sys.argv) == 5:
-        document = attest(read(sys.argv[1]), sys.argv[2], sys.argv[3])
+    elif len(sys.argv) == 6:
+        document = attest(read(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[5])
         Path(sys.argv[4]).write_text(canonical(document) + "\n")
     else:
         raise SystemExit(

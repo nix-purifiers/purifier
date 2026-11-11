@@ -46,9 +46,10 @@ module PurifierRubyGemsConsumerSDKContract
     "sha256-" + [Digest::SHA256.digest(File.open(path,"rb"){|file|file.read})].pack("m").delete("\n")
   end
   def self.validate!(value)
-    exact!(value, %w[format schemaVersion profile sdk observation components compiler nativeBuild closure])
+    exact!(value, %w[format schemaVersion profile sdk underlyingSdk observation components compiler nativeBuild closure])
     raise "unsupported consumer SDK schema" unless value["format"] == "rubygems-native-consumer-sdk" && value["schemaVersion"].is_a?(Integer) && value["schemaVersion"] == 1 && value["profile"] == PROFILE
     path!(value["sdk"])
+    path!(value["underlyingSdk"])
     rows = value["closure"]
     raise "invalid consumer SDK closure" unless rows.is_a?(Array) && rows.size.between?(1,4096)
     paths = rows.map do |row|
@@ -56,6 +57,7 @@ module PurifierRubyGemsConsumerSDKContract
     end
     raise "consumer closure needs store roots" unless paths.all?{|path|path =~ /\A\/nix\/store\/[a-z0-9]{32}-[^\/]+\z/}
     raise "noncanonical consumer SDK closure" unless paths == paths.sort.uniq && paths.include?(value["sdk"])
+    raise "underlying consumer SDK escapes closure" unless paths.include?(value["underlyingSdk"])
     inside = lambda { |path| paths.any? { |root| path == root || path.index(root + "/") == 0 } }
     observation = value["observation"]
     exact!(observation,%w[ruby patchlevel abi platform executable interpreterHash rubygemsReport rubyLibrary rubygemsLibrary installed specificationFiles nativeLibraries bundlerLoaded])

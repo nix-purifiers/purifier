@@ -5,7 +5,7 @@ module PurifierRubyGemsVersionScheme
   DEFAULT = "nix-prerelease-v1"
   NUMERIC = "legacy-numeric-v1"
   INDEX_094 = "ruby182-rubygems094-v1"
-  INDEX_FIELDS = %w[nativeIndexProfile nativeIndexEncoderIdentity nativeConsumerAttestationIdentity]
+  INDEX_FIELDS = %w[nativeIndexProfile nativeIndexEncoderIdentity nativeConsumerAttestationIdentity nativeIndexClosureIdentity]
 
   def self.index_configuration(specification)
     present = INDEX_FIELDS.select { |key| specification.key?(key) }
