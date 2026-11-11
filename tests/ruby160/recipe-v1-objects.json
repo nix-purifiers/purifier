@@ -1,0 +1,61 @@
+{
+  "ruby160": {
+    "md5": [
+      "md5c.o",
+      "md5init.o"
+    ],
+    "sdbm": [
+      "_sdbm.o",
+      "init.o"
+    ]
+  },
+  "ruby180": {
+    "dl": [
+      "dl.o",
+      "handle.o",
+      "ptr.o",
+      "sym.o"
+    ],
+    "openssl": [
+      "openssl_missing.o",
+      "ossl.o",
+      "ossl_bn.o",
+      "ossl_cipher.o",
+      "ossl_config.o",
+      "ossl_digest.o",
+      "ossl_hmac.o",
+      "ossl_ns_spki.o",
+      "ossl_ocsp.o",
+      "ossl_pkcs7.o",
+      "ossl_pkey.o",
+      "ossl_pkey_dh.o",
+      "ossl_pkey_dsa.o",
+      "ossl_pkey_rsa.o",
+      "ossl_rand.o",
+      "ossl_ssl.o",
+      "ossl_x509.o",
+      "ossl_x509attr.o",
+      "ossl_x509cert.o",
+      "ossl_x509crl.o",
+      "ossl_x509ext.o",
+      "ossl_x509name.o",
+      "ossl_x509req.o",
+      "ossl_x509revoked.o",
+      "ossl_x509store.o"
+    ],
+    "sdbm": [
+      "_sdbm.o",
+      "init.o"
+    ],
+    "syck": [
+      "emitter.o",
+      "gram.o",
+      "handler.o",
+      "implicit.o",
+      "node.o",
+      "rubyext.o",
+      "syck.o",
+      "token.o"
+    ]
+  }
+}

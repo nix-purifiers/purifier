@@ -9,8 +9,8 @@ let
     system = "i686-linux";
     config = { };
   };
-  runtime = import ./runtime.nix { inherit pkgs olderRubySource; };
-  generator = import ../rubygems0811/runtime.nix { inherit pkgs olderRubySource; };
+  recipes = import ./recipes-v1.nix { inherit pkgs olderRubySource; };
+  inherit (recipes) runtime generator;
   archive = pkgs.fetchurl {
     url = "https://i.loveruby.net/archive/racc/racc-1.4.4-all.tar.gz";
     sha256 = "4532f638fe2868c7e1ecbd52a7345ceca9a841038fceb12be1e153ee4f082660";

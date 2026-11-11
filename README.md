@@ -849,7 +849,13 @@ reports 1.4.3) and executes the generated upstream calculator before and after
 relocation. The test checks catalog bytes, loaded origins and the native closure.
 Racc's generator itself fails on 1.6.0 with a `SymbolTable` lookup error; that
 failure is retained. This is a pure library resource consumption example, with
-no RubyGems, Bundler, extension or other platform support claim.
+no RubyGems, Bundler, extension or other platform support claim. The opt-in
+`tests/ruby160/recipes-v1.nix` test packages declare their own recipe identities:
+they order six native extension object lists through the original Make `OBJS`
+variable and set OpenSSL's generated `buildinf.h` DATE to a fixed UTC literal.
+The latter changes generated build metadata; it preserves the original version,
+platform and compiler fields. Existing RubyGems SDK fixture recipes stay separate.
+CI retains complete recipe output bytes for independent NAR comparison.
 
 #### `wasmProjections`
 
