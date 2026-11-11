@@ -65,7 +65,11 @@ profile; there are no advertised modern specs endpoints or incompatible
 Gem101 Marshal endpoints. Before writing, the only permitted existing tree
 is `gems/*.gem`, all regular non-symlink files; every specification is read
 and minimum/platform/source-extension checks pass before index directories
-are created. The exact resulting endpoint set is `yaml`, `yaml.Z`,
+are created. Hidden archive names, malformed native coordinates, noncanonical
+roots and escaping paths are rejected; the exact validated archive list is
+read without a second glob. The full output manifest and all serialized
+index bodies are prepared before any index directories or files are written.
+The exact resulting endpoint set is `yaml`, `yaml.Z`,
 `Marshal.4.8`, `Marshal.4.8.Z`, `quick/index.rz`, and one YAML quick spec
 plus one `quick/Marshal.4.8` spec for each archive. The normal Nix wrapper
 then adds only `nix-support/inputs`. The writer checks the entire resulting

@@ -54,6 +54,7 @@ module PurifierRubyGemsConsumerSDKContract
     paths = rows.map do |row|
       exact!(row,%w[path narHash]);path!(row["path"]);digest!(row["narHash"]);row["path"]
     end
+    raise "consumer closure needs store roots" unless paths.all?{|path|path =~ /\A\/nix\/store\/[a-z0-9]{32}-[^\/]+\z/}
     raise "noncanonical consumer SDK closure" unless paths == paths.sort.uniq && paths.include?(value["sdk"])
     inside = lambda { |path| paths.any? { |root| path == root || path.index(root + "/") == 0 } }
     observation = value["observation"]
@@ -90,6 +91,10 @@ module PurifierRubyGemsConsumerSDKContract
       exact!(item,%w[path sha256]);path!(item["path"]);hex!(item["sha256"])
       raise "consumer specification changed" unless inside.call(item["path"]) && Digest::SHA256.hexdigest(File.open(item["path"],"rb"){|file|file.read}) == item["sha256"]
     end
+    expected_specifications=installed.map do |item|
+      File.join(File.dirname(File.dirname(item["library"])),"specifications",item["name"]+"-"+item["version"]+".gemspec")
+    end.sort
+    raise "consumer specification coordinates differ" unless specification_files.map{|item|item["path"]} == expected_specifications
     %w[ruby rubygems].each do |name|
       raise "consumer runtime library differs" unless observation[name+"Library"] == components.detect{|item|item["name"] == name}["library"]
     end
@@ -102,6 +107,7 @@ module PurifierRubyGemsConsumerSDKContract
     end
     exact!(value["compiler"],%w[path narHash]);path!(value["compiler"]["path"]);digest!(value["compiler"]["narHash"])
     raise "compiler escapes closure" unless inside.call(value["compiler"]["path"])
+    raise "compiler closure hash differs" unless rows.any?{|row|row["path"]==value["compiler"]["path"] && row["narHash"]==value["compiler"]["narHash"]}
     build=value["nativeBuild"]
     exact!(build,%w[derivation originalDerivation derivationSha256 compilerDerivation originalCompilerDerivation compilerDerivationSha256 buildCommandSha256 nativeBuildInputs outputs])
     %w[derivation compilerDerivation].each do |key|
@@ -109,8 +115,13 @@ module PurifierRubyGemsConsumerSDKContract
       raise "native build provenance changed" unless inside.call(build[key]) && Digest::SHA256.hexdigest(File.open(build[key],"rb"){|file|file.read}) == build[key+"Sha256"]
     end
     hex!(build["buildCommandSha256"])
-    raise "native compiler is not bound" unless build["nativeBuildInputs"].is_a?(Array) && build["nativeBuildInputs"].include?(value["compiler"]["path"])
-    raise "native output differs" unless build["outputs"].is_a?(Array) && build["outputs"].any?{|root| components.detect{|item|item["name"]=="json"}["library"].index(root+"/")==0}
+    %w[originalDerivation originalCompilerDerivation].each do |key|
+      raise "invalid original derivation coordinate" unless build[key].is_a?(String) && build[key] =~ /\A\/nix\/store\/[a-z0-9]{32}-[A-Za-z0-9+._?=-]+\.drv\z/
+    end
+    raise "native compiler is not bound" unless build["nativeBuildInputs"].is_a?(Array) && build["nativeBuildInputs"].size.between?(1,128) && build["nativeBuildInputs"].uniq==build["nativeBuildInputs"] && build["nativeBuildInputs"].include?(value["compiler"]["path"])
+    build["nativeBuildInputs"].each{|path|path!(path);raise "native input escapes closure" unless inside.call(path)}
+    raise "native output differs" unless build["outputs"].is_a?(Array) && build["outputs"].size==1 && installed.all?{|item|item["library"].index(build["outputs"][0]+"/")==0}
+    path!(build["outputs"][0]);raise "native output escapes closure" unless inside.call(build["outputs"][0])
     value
   end
   def self.read!(path, identity = nil)
