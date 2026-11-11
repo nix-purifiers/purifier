@@ -186,6 +186,29 @@ in
 // (import ./resources.nix { inherit pkgs purifier; })
 // (import ./wasm.nix { inherit pkgs purifier; })
 // {
+  implementation-lifecycle-driver = pkgs.writeShellApplication {
+    name = "purifier-implementation-lifecycle";
+    runtimeInputs = [
+      pkgs.nix
+      pkgs.git
+      pkgs.python3
+    ];
+    text = ''
+      exec python ${./implementation-lifecycle.py} \
+        --bootstrap ${../.}/tools/implementation.py \
+        --nixpkgs ${pkgs.path} --system ${pkgs.stdenv.hostPlatform.system} "$@"
+    '';
+  };
+  implementation-package = import ./implementation.nix { inherit pkgs purifier; };
+  implementation-bootstrap =
+    pkgs.runCommand "purifier-implementation-bootstrap-tests" { nativeBuildInputs = [ pkgs.python3 ]; }
+      ''
+        mkdir -p tools tests
+        cp ${../tools/implementation.py} tools/implementation.py
+        cp ${./test_implementation.py} tests/test_implementation.py
+        python -B tests/test_implementation.py
+        touch "$out"
+      '';
   source-input-model = import ./source-input.nix { inherit pkgs purifier; };
   cross-type-unit =
     runCommand "purifier-cross-type-unit"

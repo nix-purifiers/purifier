@@ -202,6 +202,30 @@ The result exposes `provenance`, an attribute set mapping each entry path
 to its fetched Nix source. This preserves per-entry provenance when `link`
 is false as well as when it is true. It adds no files to the tree.
 
+### `implementation`
+
+`implementation` supplies the shared bootstrap for a purifier's project-owned
+implementation pin. It takes `pkgs`, the clean flake `source` identity, a GitHub
+`repository` (`OWNER/REPO`), `tool`, `nativeCommand`, checksum adapter (`npm` or
+`sbt`) and supported `lockVersions`. Its `manifest` identifies the source,
+bootstrap protocol, platform and supported lock formats. `wrap package` installs
+that manifest beside an entrypoint; `check lockedPin value` rejects a builder
+whose implementation differs from the project's pin. `tool` names the Python
+bootstrap used by wrappers before executing ecosystem code.
+
+The bootstrap supports explicit `self-update`, staged native relocking and
+handoff to immutable Nix packages. Legacy locks warn until explicitly migrated.
+Adapters must integrate both the wrapper and the builder; exporting this helper
+does not enable pinning in a consumer. See [the contract](CONTRACT.md#purifier-implementation)
+for the envelope, migration and failure behavior.
+
+`implementationSource.resolve source` verifies an immutable source descriptor
+and returns its `tree`, `reference` and `flake`. The flake retains its revision
+and NAR metadata. Command integrations use this when loading the pinned builder;
+reopening a source store path alone loses the revision identity. Source bytes
+are verified before evaluating the flake. `implementationSource.valid source`
+checks the descriptor without fetching it.
+
 ### `sourceInput`
 
 `sourceInput { src, git ? null }` pairs an immutable Nix source reference with
