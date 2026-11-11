@@ -29,6 +29,7 @@
   jvmRepositoryTool = ../../tools/jvm_repository.py;
   sourceInput = import ./source-input.nix { inherit lib; };
   implementation = import ./implementation.nix { inherit lib; };
+  implementationSource = import ./implementation-source.nix;
   inputIdentity = import ./input-identity.nix { inherit lib; };
   jvmSdkIdentity = import ./jvm-sdk-identity.nix { inherit lib; };
   jvmSdkAdapter = import ./jvm-sdk-adapter.nix { inherit lib; };

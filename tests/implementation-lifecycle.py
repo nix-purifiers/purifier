@@ -104,7 +104,12 @@ def main():
               chmod +x "$out/bin/fixture" "$out/bin/fixture-purifier"
               cp ${manifest} "$out/share/purifier/implementation.json"
             \'\';
-          in { packages.${system} = { fixture-purifier=package; fixture=package; }; };
+          in {
+            packages.${system} = { fixture-purifier=package; fixture=package; };
+            loader = source: let
+              loaded = (import "${bootstrap}/nix/lib/implementation-source.nix").resolve source;
+            in { rev=loaded.flake.sourceInfo.rev; narHash=loaded.flake.sourceInfo.narHash; };
+          };
         }'''
         replacements = {"@SYSTEM@": json.dumps(args.system), "@NIXPKGSURL@": json.dumps("path:" + args.nixpkgs),
                         "@BOOTSTRAPURL@": json.dumps("path:" + str(Path(args.bootstrap).parents[1])),
@@ -139,6 +144,17 @@ def main():
         lock.write_text(bootstrap.render_lock({"version": 3, "hash": "", "dependencies": {"library": "1.0.0"},
                                              "implementation": pin}, "npm"))
         original_lock = lock.read_bytes()
+        # A builder loader must keep revision identity instead of reopening a
+        # store path as an unrelated path flake. This uses the real Nix model.
+        source_expression = "loader: loader (builtins.fromJSON " + bootstrap.nix_string(json.dumps(sources[0])) + ")"
+        loaded = json.loads(command(["nix", "eval", "--json", bootstrap.source_ref(sources[0]) + "#loader",
+                                     "--apply", source_expression]).stdout)
+        assert loaded == {key: sources[0][key] for key in ("rev", "narHash")}
+        wrong_source = dict(sources[0], narHash="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+        wrong_expression = "loader: loader (builtins.fromJSON " + bootstrap.nix_string(json.dumps(wrong_source)) + ")"
+        rejected = command(["nix", "eval", "--json", bootstrap.source_ref(sources[0]) + "#loader",
+                            "--apply", wrong_expression], expected=1)
+        assert "hash mismatch" in rejected.stderr.lower()
         # Both public CLI and native-tool entrypoints hand off through real Nix.
         selected = command([packages[1] / "bin/fixture-purifier", "identity"], project)
         assert json.loads(selected.stdout)["source"] == sources[0]
@@ -188,6 +204,7 @@ def main():
                    "argumentsStreamsCwdExitPreserved": True, "externalLock": True,
                    "unknownPinRejected": True, "wrongNarHashRejected": True,
                    "explicitSourceUpdate": True, "cachedWithoutBuildsOrSubstituters": True,
+                   "builderSourceMetadataPreserved": True,
                    "implementationGcRoots": len(roots)}
         text = json.dumps(receipt, indent=2) + "\n"
         if args.output:

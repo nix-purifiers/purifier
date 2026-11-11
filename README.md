@@ -219,6 +219,13 @@ Adapters must integrate both the wrapper and the builder; exporting this helper
 does not enable pinning in a consumer. See [the contract](CONTRACT.md#purifier-implementation)
 for the envelope, migration and failure behavior.
 
+`implementationSource.resolve source` verifies an immutable source descriptor
+and returns its `tree`, `reference` and `flake`. The flake retains its revision
+and NAR metadata. Command integrations use this when loading the pinned builder;
+reopening a source store path alone loses the revision identity. Source bytes
+are verified before evaluating the flake. `implementationSource.valid source`
+checks the descriptor without fetching it.
+
 ### `sourceInput`
 
 `sourceInput { src, git ? null }` pairs an immutable Nix source reference with

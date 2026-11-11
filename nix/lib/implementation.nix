@@ -57,44 +57,7 @@ let
     // lib.optionalAttrs (package ? override) {
       override = args: wrapPackage (package.override args);
     };
-  validLockedSource =
-    locked:
-    builtins.isAttrs locked
-    && builtins.isString (locked.rev or null)
-    && builtins.match "[0-9a-f]{40}" locked.rev != null
-    && builtins.isString (locked.narHash or null)
-    && builtins.match "sha256-[A-Za-z0-9+/]{43}=" locked.narHash != null
-    && (
-      if (locked.type or null) == "github" then
-        builtins.attrNames locked == [
-          "narHash"
-          "owner"
-          "repo"
-          "rev"
-          "type"
-        ]
-        &&
-          builtins.all
-            (
-              key:
-              builtins.isString locked.${key} && builtins.match "[A-Za-z0-9][A-Za-z0-9_.-]*" locked.${key} != null
-            )
-            [
-              "owner"
-              "repo"
-            ]
-      else if (locked.type or null) == "git" then
-        builtins.attrNames locked == [
-          "narHash"
-          "rev"
-          "type"
-          "url"
-        ]
-        && builtins.isString locked.url
-        && builtins.match "(https|ssh|file)://[^?#[:cntrl:]]+" locked.url != null
-      else
-        false
-    );
+  validLockedSource = (import ./implementation-source.nix).valid;
 in
 assert lib.assertMsg (
   builtins.length parts == 2
@@ -102,6 +65,7 @@ assert lib.assertMsg (
 {
   inherit identity pin manifest;
   tool = ../../tools/implementation.py;
+  sourceModel = ./implementation-source.nix;
   wrap = wrapPackage;
   # A builder never substitutes its own code for the project's pinned code.
   # Legacy locks remain readable until explicitly migrated.
