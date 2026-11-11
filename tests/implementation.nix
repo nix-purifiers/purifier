@@ -16,6 +16,7 @@ let
       lockVersions = [ 3 ];
     };
   selected = make source;
+  configured = selected.withConfiguration { sdk = "8.17.0"; };
   other = make (source // { rev = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; });
   overridden = make (source // { dirty = true; });
   package = selected.wrap (pkgs.writeShellScriptBin "fixture" "echo 42");
@@ -29,6 +30,9 @@ let
   );
 in
 assert selected.check selected.pin true;
+assert configured.check configured.pin true;
+assert !(builtins.tryEval (configured.check selected.pin true)).success;
+assert !(builtins.tryEval (selected.check configured.pin true)).success;
 assert selected.check null true;
 assert !(builtins.tryEval (other.check selected.pin true)).success;
 assert

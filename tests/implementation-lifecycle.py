@@ -48,7 +48,7 @@ else:
         assert Path(args.implementation_native_lockfile).read_bytes()==(Path.cwd()/"native.json").read_bytes()
         print("native relock @MARKER@",file=sys.stderr)
     else:
-        print(json.dumps({"marker":@MARKER@,"source":manifest["source"],"cwd":str(Path.cwd()),"arguments":sys.argv[1:]}))
+        print(json.dumps({"marker":@MARKER@+(manifest.get("configuration") or {}).get("offset",0),"source":manifest["source"],"cwd":str(Path.cwd()),"arguments":sys.argv[1:]}))
         print("native stderr @MARKER@",file=sys.stderr)
         raise SystemExit(args.exit)
 '''
@@ -87,9 +87,10 @@ def main():
           outputs = { self, nixpkgs, bootstrap }: let
             system = @SYSTEM@;
             pkgs = import nixpkgs { inherit system; };
+            make = configuration: let
             manifest = pkgs.writeText "implementation.json" (builtins.toJSON {
               bootstrapVersion=1; tool="fixture-purifier"; nativeCommand="fixture";
-              inherit system; checksum="npm"; lockVersions=[3];
+              inherit system configuration; checksum="npm"; lockVersions=[3];
               source={type="git";url=@URL@;rev=self.rev;narHash=self.narHash;};
             });
             entry = pkgs.writeText "entry.py" (
@@ -104,8 +105,16 @@ def main():
               chmod +x "$out/bin/fixture" "$out/bin/fixture-purifier"
               cp ${manifest} "$out/share/purifier/implementation.json"
             \'\';
+            in package;
           in {
-            packages.${system} = { fixture-purifier=package; fixture=package; };
+            packages.${system} = { fixture-purifier=make null; fixture=make null; };
+            lib.fixture-purifier.implementationPackage = { system, entry, configuration }:
+              assert system == @SYSTEM@;
+              assert builtins.elem entry [ "fixture-purifier" "fixture" ];
+              assert builtins.attrNames configuration == [ "offset" ];
+              assert builtins.isInt configuration.offset && configuration.offset == 8;
+              make configuration;
+
             loader = source: let
               loaded = (import "${bootstrap}/nix/lib/implementation-source.nix").resolve source;
             in { rev=loaded.flake.sourceInfo.rev; narHash=loaded.flake.sourceInfo.narHash; };
@@ -170,6 +179,31 @@ def main():
         assert json.loads(command([packages[1] / "bin/fixture", "native"], project).stdout)["marker"] == 43
         command([packages[1] / "bin/fixture-purifier", "self-update", "--to", bootstrap.source_ref(sources[0])], project)
         assert lock.read_bytes() == original_lock and native.read_bytes() == original_native
+        # Same source/different configuration must also dispatch through the
+        # real immutable source-owned constructor, not the default package.
+        configured_pin = dict(pin, configuration={"offset": 8})
+        configured_package = bootstrap.resolve_package(configured_pin,
+            {"tool": "fixture-purifier", "nativeCommand": "fixture", "system": args.system}, "fixture", lock)
+        bootstrap.verify_package(configured_package, configured_pin)
+        value = bootstrap.read_lock(original_lock.decode(), "npm")
+        value["implementation"] = configured_pin
+        configured_lock = bootstrap.render_lock(value, "npm").encode()
+        lock.write_bytes(configured_lock)
+        for package in packages:
+            for entrypoint in ("fixture", "fixture-purifier"):
+                selected = command([package / "bin" / entrypoint, "identity"], project)
+                assert json.loads(selected.stdout)["marker"] == 50
+        # Explicit source advance preserves the selected configuration; restore
+        # must return byte-for-byte to the original configured lock.
+        command([packages[1] / "bin/fixture-purifier", "self-update", "--to", bootstrap.source_ref(sources[1])], project)
+        assert json.loads(command([packages[0] / "bin/fixture", "identity"], project).stdout)["marker"] == 51
+        command([packages[1] / "bin/fixture-purifier", "self-update", "--to", bootstrap.source_ref(sources[0])], project)
+        assert lock.read_bytes() == configured_lock
+        value["implementation"]["configuration"] = {"offset": 9}
+        lock.write_text(bootstrap.render_lock(value, "npm"))
+        failed = command([packages[0] / "bin/fixture", "identity"], project, expected=None)
+        assert failed.returncode != 0 and not failed.stdout
+        lock.write_bytes(original_lock)
         # External lock selection works, and malformed/unknown pins cannot fall back.
         external = root / "external.json"
         external.write_bytes(original_lock)
@@ -205,6 +239,8 @@ def main():
                    "unknownPinRejected": True, "wrongNarHashRejected": True,
                    "explicitSourceUpdate": True, "cachedWithoutBuildsOrSubstituters": True,
                    "builderSourceMetadataPreserved": True,
+                   "configuredMarkers": [50, 51, 50], "sameSourceConfigurationDispatch": True,
+                   "unsupportedConfigurationRejected": True,
                    "implementationGcRoots": len(roots)}
         text = json.dumps(receipt, indent=2) + "\n"
         if args.output:

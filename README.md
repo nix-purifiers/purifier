@@ -230,6 +230,22 @@ reopening a source store path alone loses the revision identity. Source bytes
 are verified before evaluating the flake. `implementationSource.valid source`
 checks the descriptor without fetching it.
 
+
+Implementation pins may also contain a nonempty `configuration` object for a
+source-owned package variant, such as an exact Node.js SDK recipe. The bootstrap
+passes this data to the pinned source's
+`lib.<tool>.implementationPackage { system; entry; configuration; }` constructor.
+The constructor must validate its keys and types and return a package whose
+manifest confirms the same configuration. Missing or unsupported constructors
+fail; they never fall back to the default package.
+
+Integrations use `implementation.withConfiguration configuration` when wrapping
+a configured package and when checking its builder. Both source and configuration
+must match, including when two packages come from the same source revision.
+`self-update --to <source>` preserves the project's configuration;
+`self-update --to installed` explicitly selects the installed package configuration.
+Existing source-only pins still select the source's default package.
+
 ### `sourceInput`
 
 `sourceInput { src, git ? null }` pairs an immutable Nix source reference with
