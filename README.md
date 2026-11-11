@@ -206,12 +206,16 @@ is false as well as when it is true. It adds no files to the tree.
 
 `implementation` supplies the shared bootstrap for a purifier's project-owned
 implementation pin. It takes `pkgs`, the clean flake `source` identity, a GitHub
-`repository` (`OWNER/REPO`), `tool`, `nativeCommand`, checksum adapter (`npm` or
-`sbt`) and supported `lockVersions`. Its `manifest` identifies the source,
+`repository` (`OWNER/REPO`), `tool`, `nativeCommand`, checksum adapter (`npm`,
+`sbt` or `canonical-json-sha256`) and supported `lockVersions`. Its `manifest` identifies the source,
 bootstrap protocol, platform and supported lock formats. `wrap package` installs
 that manifest beside an entrypoint; `check lockedPin value` rejects a builder
 whose implementation differs from the project's pin. `tool` names the Python
 bootstrap used by wrappers before executing ecosystem code.
+
+`canonical-json-sha256` hashes Nix's canonical JSON without the top-level
+`contentHash` field. It uses a data-only Nix evaluation with a dummy store;
+snapshot data is neither evaluated as code nor added to the Nix store.
 
 The bootstrap supports explicit `self-update`, staged native relocking and
 handoff to immutable Nix packages. Legacy locks warn until explicitly migrated.

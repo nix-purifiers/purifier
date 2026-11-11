@@ -70,6 +70,25 @@ def same_source(left, right):
     return all(left[key] == right[key] for key in ("rev", "narHash"))
 
 
+def canonical_checksum(value):
+    """Use the native Nix JSON encoding, rather than approximating it in Python.
+
+    The dummy store keeps this data-only evaluation independent of a daemon,
+    network access, and writes to the real Nix store. A private file avoids
+    command-line size limits for large dependency snapshots.
+    """
+    body = {key: item for key, item in value.items() if key != "contentHash"}
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".json") as data:
+        json.dump(body, data, ensure_ascii=False, allow_nan=False)
+        data.flush()
+        expression = ('builtins.hashString "sha256" (builtins.toJSON '
+                      '(builtins.fromJSON (builtins.readFile ' + nix_string(data.name) + ')))')
+        return subprocess.check_output([
+            "nix", "--extra-experimental-features", "nix-command", "--store", "dummy://",
+            "eval", "--offline", "--impure", "--raw", "--expr", expression,
+        ], text=True).strip()
+
+
 def read_lock(text, checksum):
     def unique_fields(fields):
         result = {}
@@ -98,6 +117,12 @@ def read_lock(text, checksum):
             raise ValueError("purifier lock does not have the native sbt checksum header")
         blank, count = re.subn(r'^  "contentHash": "[0-9a-f]{64}",\n', "", text, count=1, flags=re.M)
         actual = hashlib.sha256(blank.encode()).hexdigest()
+    elif checksum == "canonical-json-sha256":
+        stored = value.get("contentHash")
+        if not isinstance(stored, str) or re.fullmatch(r"[0-9a-f]{64}", stored) is None:
+            raise ValueError("purifier lock has no canonical contentHash")
+        count = 1
+        actual = canonical_checksum(value)
     else:
         raise ValueError("unsupported purifier checksum adapter")
     if count != 1 or stored != actual:
@@ -125,6 +150,9 @@ def render_lock(value, checksum):
         lines = text.splitlines(keepends=True)
         lines.insert(2, '  "contentHash": "' + digest + '",\n')
         return "".join(lines)
+    if checksum == "canonical-json-sha256":
+        value["contentHash"] = canonical_checksum(value)
+        return json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
     raise ValueError("unsupported purifier checksum adapter")
 
 
