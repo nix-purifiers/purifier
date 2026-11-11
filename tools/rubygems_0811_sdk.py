@@ -159,7 +159,6 @@ def attest(descriptor, closure_file, nix, runtime_ruby, probe, sources_helper):
             raise ValueError('noncanonical0811 native observation')
         compiler_version = run([compiler+'/bin/gcc','--version'], env)
         compiler_target = run([compiler+'/bin/gcc','-dumpmachine'], env).strip()
-        expected_specification = run([runtime_ruby,sources_helper,source_tree],env).encode('ascii')
     exact(observation,'ruby patchlevel abi platform nixSystem pointerBytes elfClass elfMachine executable interpreterSha256 rubygemsReport rubyLibrary rubygemsLibrary installed specificationFiles bundlerLoaded')
     required = dict(ruby='1.8.0',patchlevel=None,abi='1.8',platform='i686-linux-gnu',nixSystem='i686-linux',pointerBytes=4,elfClass=32,elfMachine=3,bundlerLoaded=False,rubygemsReport={'name':'Gem::RubyGemsVersion','value':'0.8.11'})
     if any(type(observation[k]) is not type(v) or observation[k] != v for k,v in required.items()):
@@ -228,6 +227,11 @@ def attest(descriptor, closure_file, nix, runtime_ruby, probe, sources_helper):
     for name, data in embedded.items():
         if Path(physical(source_tree+'/'+name)).read_bytes() != data:
             raise ValueError('0811 embedded source bytes changed')
+    # Only the byte-verified original factory may be executed. The source tree
+    # lives in immutable Nix store paths, so this check cannot race a mutable input.
+    with tempfile.TemporaryDirectory(prefix='sources0811-') as temp:
+        env.update(HOME=temp,GEM_HOME=temp+'/gems',GEM_PATH=temp+'/gems',TZ='UTC')
+        expected_specification = run([runtime_ruby,sources_helper,source_tree],env).encode('ascii')
     if Path(spec).read_bytes() != expected_specification:
         raise ValueError('0811 installed spec differs from original native source factory')
     source_library = installed[0]['library']

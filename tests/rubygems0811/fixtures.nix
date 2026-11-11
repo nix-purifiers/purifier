@@ -76,6 +76,27 @@ let
       dependencies = [ (producer // { projections = projection; }) ];
     }
   );
+  forgedSources = pkgs.runCommand "forged-original0811-factory-control" { } ''
+        ${pkgs.python3}/bin/python3 -B - ${sdk}/share/purifier/consumer-components.json "$out" <<'PYFORGE'
+    from pathlib import Path
+    import json,shutil,sys
+    source=Path(json.loads(Path(sys.argv[1]).read_text())['originalSources'])
+    output=Path(sys.argv[2]);shutil.copytree(source,output)
+    factory=output/'sources.gemspec';factory.chmod(0o644)
+    with factory.open('ab')as stream:
+     stream.write(b'\nFile.open(ENV["PURIFIER_FACTORY_SENTINEL"],"wb"){|f|f.write("forged factory executed\\n")}\n')
+    PYFORGE
+  '';
+  factoryClosure = pkgs.closureInfo {
+    rootPaths = [
+      sdk
+      forgedSources
+    ];
+  };
+  factoryOrder = pkgs.runCommand "ruby180-forged-factory-order" { } ''
+    export PURIFIER_TEST_NIX=${pkgs.nix}/bin/nix
+    ${pkgs.python3}/bin/python3 -B ${./factory_order.py} ${sdk} ${forgedSources} ${factoryClosure}/store-paths ${../../tools/rubygems_0811_sdk.py} ${../../tools/rubygems_0811_probe.rb} ${../../tools/rubygems_0811_sources_spec.rb} "$out"
+  '';
   nativeProof =
     fallback:
     pkgs.runCommand
@@ -93,7 +114,7 @@ let
 
 in
 {
-  inherit sdk crc;
+  inherit sdk crc factoryOrder;
   attestation = sdk.consumerAttestationPackage;
   repository = projection.rubygems;
   reusedRepository = reused.rubygems;

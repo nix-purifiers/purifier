@@ -15,9 +15,11 @@ assert raw == canonical+b'\n'
 print('sha256-'+base64.b64encode(hashlib.sha256(canonical).digest()).decode())
 PY
 )
+factory=$(nix-build tests/rubygems0811/ci.nix -A factoryOrder --no-out-link)
 native=$(nix-build tests/rubygems0811/ci.nix -A native --argstr nativeSdkIdentity "$identity" --no-out-link)
 fallback=$(nix-build tests/rubygems0811/ci.nix -A nativeFallback --argstr nativeSdkIdentity "$identity" --no-out-link)
 crc=$(nix-build tests/rubygems0811/ci.nix -A crc --no-out-link)
+cp -R "$factory" "$evidence_dir/factory-order"
 cp -R "$attestation" "$evidence_dir/attestation"
 cp -R "$native" "$evidence_dir/native"
 cp -R "$fallback" "$evidence_dir/native-yaml-fallback"
