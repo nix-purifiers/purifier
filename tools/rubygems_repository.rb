@@ -11,7 +11,7 @@ require "base64"
 require File.expand_path("rubygems_version_scheme.rb", File.dirname(__FILE__)) unless ENV["PURIFIER_RUBYGEMS_VERSION_SCHEME_PRELOADED"] == "1"
 
 specification = JSON.parse(File.read(ARGV.fetch(0)))
-version_scheme, native_sdk_identity = PurifierRubyGemsVersionScheme.configuration(specification)
+version_scheme, native_sdk_identity, native_index_identity = PurifierRubyGemsVersionScheme.configuration(specification)
 destination = ARGV.fetch(1)
 catalog_path = ARGV.fetch(2)
 intrinsics = {}
@@ -29,7 +29,7 @@ specification.fetch("dependencies", []).each do |input|
   catalog = JSON.parse(File.read(input.fetch("catalog")))
   catalog.fetch("intrinsics", []).each { |entry| add_intrinsic(intrinsics, entry) }
   catalog.fetch("packages").each do |entry|
-    PurifierRubyGemsVersionScheme.validate_provided!(entry, version_scheme, native_sdk_identity)
+    PurifierRubyGemsVersionScheme.validate_provided!(entry, version_scheme, native_sdk_identity, native_index_identity)
     archive = File.join(input.fetch("repository"), entry.fetch("archive"))
     actual = "sha512-#{Base64.encode64(Digest::SHA512.file(archive).digest).delete("\n")}"
     raise "RubyGems input archive integrity mismatch: #{archive}" unless actual == entry.fetch("integrity")
@@ -109,7 +109,7 @@ versions = Hash[packages.map do |archive, spec, provided|
     sdk_dependencies = reachable.values.map { |_, value, provided| provided unless value }.select { |entry| entry }
     identity_payload = [specification.fetch("projectorIdentity", "rubygems-v1"), graph, sdk_dependencies]
     if version_scheme == PurifierRubyGemsVersionScheme::NUMERIC
-      identity_payload = [version_scheme, native_sdk_identity, identity_payload]
+      identity_payload = [version_scheme, native_sdk_identity, native_index_identity, identity_payload]
     end
     fingerprint = Digest::SHA256.hexdigest(PurifierRubyGemsCodec.json(identity_payload))
     fingerprints[spec.name] = fingerprint
@@ -175,6 +175,7 @@ packages.each do |archive, original, provided|
     elsif version_scheme == PurifierRubyGemsVersionScheme::NUMERIC
       entry["versionScheme"] = version_scheme
       entry["nativeSdkIdentity"] = native_sdk_identity
+      entry["nativeIndexIdentity"] = native_index_identity
       entry["versionFingerprint"] = fingerprints.fetch(spec.name)
     end
     entries << entry

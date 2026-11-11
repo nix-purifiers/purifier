@@ -9,6 +9,7 @@ module PurifierRubyGemsVersionScheme
     scheme = specification.fetch("versionScheme", DEFAULT)
     raise "unsupported RubyGems version scheme" unless [DEFAULT, NUMERIC].include?(scheme)
     identity = specification["nativeSdkIdentity"]
+    index_identity = specification["nativeIndexIdentity"]
     if scheme == NUMERIC
       valid = identity.is_a?(String) && identity =~ /\Asha256-[A-Za-z0-9+\/]{43}=\z/
       if valid
@@ -16,10 +17,11 @@ module PurifierRubyGemsVersionScheme
         valid = raw.length == 32 && "sha256-" + Base64.encode64(raw).delete("\n") == identity
       end
       raise "numeric RubyGems projection needs an exact SDK identity" unless valid
-    elsif !identity.nil?
+      raise "numeric RubyGems projection needs an exact native index runtime" unless index_identity.is_a?(String) && index_identity =~ /\A[0-9a-f]{64}\z/
+    elsif !identity.nil? || !index_identity.nil?
       raise "native SDK identity requires the numeric RubyGems version scheme"
     end
-    [scheme, identity]
+    [scheme, identity, index_identity]
   end
 
   def self.numeric_source!(version)
@@ -40,15 +42,16 @@ module PurifierRubyGemsVersionScheme
     source + ".1." + (fingerprint.to_i(16) + 1).to_s
   end
 
-  def self.validate_provided!(entry, scheme, identity)
+  def self.validate_provided!(entry, scheme, identity, index_identity = nil)
     provided_scheme = entry.fetch("versionScheme", DEFAULT)
     raise "incompatible provided RubyGems version scheme" unless provided_scheme == scheme
     if scheme == NUMERIC
       raise "provided numeric RubyGems SDK differs" unless entry["nativeSdkIdentity"] == identity
+      raise "provided numeric RubyGems index runtime differs" unless entry["nativeIndexIdentity"] == index_identity
       fingerprint = entry.fetch("versionFingerprint")
       expected = version(entry.fetch("sourceVersion"), fingerprint, scheme)
       raise "provided numeric RubyGems version differs from provenance" unless entry.fetch("version") == expected
-    elsif entry.key?("nativeSdkIdentity") || entry.key?("versionFingerprint")
+    elsif entry.key?("nativeSdkIdentity") || entry.key?("versionFingerprint") || entry.key?("nativeIndexIdentity")
       raise "unexpected numeric provenance in default RubyGems input"
     end
   end

@@ -16,6 +16,7 @@ in
   name ? "rubygems-projection",
   versionScheme ? "nix-prerelease-v1",
   nativeSdkIdentity ? null,
+  legacyIndexRuby ? null,
 }:
 assert lib.assertMsg (builtins.elem versionScheme [
   "nix-prerelease-v1"
@@ -28,6 +29,9 @@ assert lib.assertMsg (
   else
     nativeSdkIdentity == null
 ) "numeric RubyGems projection requires an exact SDK identity";
+assert lib.assertMsg (
+  (versionScheme == "legacy-numeric-v1") == (legacyIndexRuby != null)
+) "numeric RubyGems projection requires its explicit native index SDK";
 let
   selected = projectInputs {
     inherit dependencies;
@@ -37,14 +41,20 @@ let
     repository = toString input.repository;
     catalog = input.repository.catalog;
   }) selected;
-  toolchain = runCommand "rubygems-projector-toolchain" {
-    projector = ../../tools/rubygems_repository.rb;
-    codec = ../../tools/rubygems_codec.rb;
-    versionSchemes = ../../tools/rubygems_version_scheme.rb;
-    indexer = ../../tools/rubygems_index.rb;
-    indexRuntime = indexRuby;
-    nativeBuildInputs = [ ruby ];
-  } "touch $out";
+  toolchain = runCommand "rubygems-projector-toolchain" (
+    {
+      projector = ../../tools/rubygems_repository.rb;
+      codec = ../../tools/rubygems_codec.rb;
+      versionSchemes = ../../tools/rubygems_version_scheme.rb;
+      indexer = ../../tools/rubygems_index.rb;
+      indexRuntime = indexRuby;
+      nativeBuildInputs = [ ruby ];
+    }
+    // lib.optionalAttrs (legacyIndexRuby != null) {
+      legacyIndexer = ../../tools/rubygems_legacy_index.rb;
+      legacyIndexRuntime = legacyIndexRuby;
+    }
+  ) "touch $out";
   archiveIdentities = builtins.listToAttrs (
     map (archive: {
       name = builtins.unsafeDiscardStringContext (toString archive);
@@ -90,6 +100,8 @@ let
           }
           // lib.optionalAttrs (versionScheme != "nix-prerelease-v1" || nativeSdkIdentity != null) {
             inherit versionScheme nativeSdkIdentity;
+            nativeIndexIdentity =
+              if legacyIndexRuby == null then null else (inputIdentity legacyIndexRuby).hash;
           }
         );
         passAsFile = [ "spec" ];
@@ -100,6 +112,9 @@ let
           ${ruby}/bin/ruby -r ${../../tools/rubygems_codec.rb} -r ${../../tools/rubygems_version_scheme.rb} ${../../tools/rubygems_repository.rb} "$specPath" \
           "$out" "$metadata/catalog.json"
         ${indexRuby}/bin/ruby ${../../tools/rubygems_index.rb} "$out" "$metadata/catalog.json"
+        ${lib.optionalString (legacyIndexRuby != null) ''
+          ${legacyIndexRuby}/bin/ruby ${../../tools/rubygems_legacy_index.rb} "$out"
+        ''}
         mkdir -p "$out/nix-support"
         printf '%s\n' ${
           lib.escapeShellArgs (
