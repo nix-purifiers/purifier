@@ -245,6 +245,16 @@ must match, including when two packages come from the same source revision.
 `self-update --to installed` explicitly selects the installed package configuration.
 Existing source-only pins still select the source's default package.
 
+Wrapped packages reject outer `.override`, `.overrideAttrs` and
+`.overrideDerivation` changes that alter the Nix derivation. An outer manifest
+change cannot update a bootstrap manifest already embedded in the program.
+Metadata-only changes that retain the same derivation are allowed. Integrations
+that expose configurable packages must construct their configuration-aware
+helper and wrap the program **inside** their `callPackage` function; its outer
+Nix override then reconstructs both the program and its manifest together.
+These checks cover the wrapped package methods, not arbitrary external Nix
+rewrites of a derivation.
+
 ### `sourceInput`
 
 `sourceInput { src, git ? null }` pairs an immutable Nix source reference with
