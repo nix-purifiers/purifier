@@ -840,6 +840,23 @@ fail. Other schema formats can use the same resource mechanism, but require
 their own native compiler and runtime proof. Generated language packages remain
 separate outputs with their own package manifests and runtime dependencies.
 
+The Linux i686 test in `tests/ruby160` exercises the existing
+`resourceProjections` and `projectInputs` APIs with original Ruby 1.6.0
+(2000-09-19). An original Ruby 1.8.0 producer runs the upstream Racc 1.4.4
+generator with its documented `--no-line-convert` option (diagnostic locations
+refer to the generated file); the 1.6.0 consumer loads its unchanged pure Ruby runtime (which
+reports 1.4.3) and executes the generated upstream calculator before and after
+relocation. The test checks catalog bytes, loaded origins and the native closure.
+Racc's generator itself fails on 1.6.0 with a `SymbolTable` lookup error; that
+failure is retained. This is a pure library resource consumption example, with
+no RubyGems, Bundler, extension or other platform support claim. The opt-in
+`tests/ruby160/recipes-v1.nix` test packages declare their own recipe identities:
+they order six native extension object lists through the original Make `OBJS`
+variable and set OpenSSL's generated `buildinf.h` DATE to a fixed UTC literal.
+The latter changes generated build metadata; it preserves the original version,
+platform and compiler fields. Existing RubyGems SDK fixture recipes stay separate.
+CI retains complete recipe output bytes for independent NAR comparison.
+
 #### `wasmProjections`
 
 `wasmProjections` validates explicitly selected **core WebAssembly modules** and
@@ -875,6 +892,7 @@ it does not infer function signatures or provide host implementations. It does
 not claim browser execution, cross-engine feature compatibility, WASI runtime
 support, component/WIT support, generated JS bindings or an npm publication.
 Producer compiler/target settings remain native inputs to the producer.
+
 
 ## Credits
 
