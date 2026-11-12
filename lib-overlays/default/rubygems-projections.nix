@@ -129,17 +129,72 @@ let
       indexProfile = legacyIndexProfile;
     }
   ) "touch $out";
-  archiveIdentities = builtins.listToAttrs (
-    map (archive: {
-      name = builtins.unsafeDiscardStringContext (toString archive);
-      value =
-        (inputIdentity (
-          builtins.path {
-            path = archive;
-            name = "gem";
+  # Generated archives identify their immutable producer and selection without
+  # inspecting an output during evaluation. Plain archive inputs keep their
+  # existing content identity and API.
+  safeMember =
+    value:
+    builtins.isString value
+    && value != ""
+    && builtins.match ".*[[:cntrl:]].*" value == null
+    && !(lib.hasInfix "\\" value)
+    && lib.all (part: part != "" && part != "." && part != "..") (lib.splitString "/" value);
+  archiveInputs = map (
+    archive:
+    if builtins.isAttrs archive && !(lib.isDerivation archive) then
+      assert lib.assertMsg
+        (
+          builtins.attrNames archive == [
+            "path"
+            "producer"
+            "type"
+          ]
+          && archive.type == "generated-gem"
+          && (archive.path == null || safeMember archive.path)
+        )
+        "generated RubyGems archive needs type, immutable producer and a safe relative path (or null for a file output)";
+      let
+        root = toString archive.producer;
+        producerIdentity = inputIdentity archive.producer;
+        selection = {
+          type = archive.type;
+          producer = root;
+          path = archive.path;
+        };
+      in
+      builtins.deepSeq producerIdentity {
+        archive = root + lib.optionalString (archive.path != null) ("/" + archive.path);
+        generated = selection;
+        identity = builtins.hashString "sha256" (
+          builtins.toJSON {
+            format = "purifier-generated-gem-v1";
+            inherit selection;
+            producer = producerIdentity.hash;
           }
-        )).hash;
-    }) archives
+        );
+      }
+    else
+      {
+        inherit archive;
+        generated = null;
+        identity =
+          (inputIdentity (
+            builtins.path {
+              path = archive;
+              name = "gem";
+            }
+          )).hash;
+      }
+  ) archives;
+  selectedArchives = map (input: input.archive) archiveInputs;
+  generatedArchives = map (input: input.generated) (
+    builtins.filter (input: input.generated != null) archiveInputs
+  );
+  archiveIdentities = builtins.listToAttrs (
+    map (input: {
+      name = builtins.unsafeDiscardStringContext (toString input.archive);
+      value = input.identity;
+    }) archiveInputs
   );
   identity = runCommand "${name}-identity" {
     producerIdentity = (inputIdentity producer).hash;
@@ -149,7 +204,8 @@ let
     indexer = ../../tools/rubygems_index.rb;
     indexRuntime = indexRuby;
     nativeBuildInputs = [ ruby ];
-    archives = builtins.toJSON archives;
+    archives = builtins.toJSON selectedArchives;
+    generatedArchives = builtins.toJSON generatedArchives;
     dependencies = builtins.toJSON repositories;
   } "touch $out";
   projection =
@@ -163,8 +219,9 @@ let
         spec = builtins.toJSON (
           {
             identity = (inputIdentity identity).hash;
+            archives = selectedArchives;
             inherit
-              archives
+              generatedArchives
               archiveIdentities
               roots
               intrinsics
