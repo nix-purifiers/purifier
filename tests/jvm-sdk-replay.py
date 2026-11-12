@@ -19,7 +19,7 @@ import jvm_sdk_sources
 parser = argparse.ArgumentParser()
 parser.add_argument("--output", type=Path, required=True)
 args = parser.parse_args()
-graph_file = root / "nix/lib/jvm-sdk-source-graph.nix"
+graph_file = root / "lib-overlays/default/jvm-sdk-source-graph.nix"
 report = {"scope": "direct Nix graph comparison; path fixtures do not enable path SDK sources",
           "sourceHashes": {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
                            for p in [graph_file, Path(__file__)]}, "cases": []}

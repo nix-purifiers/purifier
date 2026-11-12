@@ -30,7 +30,7 @@ with tempfile.TemporaryDirectory(prefix='purifier-source-validation-') as tempor
             '(' + project_inputs.selection_expression() + ').marker',
             '''let
               f = builtins.getFlake ("path:" + builtins.getEnv "PURIFIER_TEST_ROOT");
-              select = import (f.outPath + "/nix/lib/locked-project-inputs.nix") {lib=f.inputs.nixpkgs.lib;};
+              select = import (f.outPath + "/lib-overlays/default/locked-project-inputs.nix") {lib=f.inputs.nixpkgs.lib;};
               input = builtins.fromJSON (builtins.getEnv "PURIFIER_PROJECT_INPUT");
             in (builtins.head (select {inputs=[input];system=builtins.currentSystem;})).marker''',
         ]

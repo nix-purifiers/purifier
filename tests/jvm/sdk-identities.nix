@@ -35,7 +35,7 @@ let
       runtimeHome = home;
     };
   };
-  pinnedAdapters = import ../../nix/lib/jvm-sdk-adapters.nix { inherit pkgs; };
+  pinnedAdapters = import ../../lib-overlays/default/jvm-sdk-adapters.nix { inherit pkgs; };
   invalidPaths = [
     "${sdk}/../../outside"
     "${home}/./nested"

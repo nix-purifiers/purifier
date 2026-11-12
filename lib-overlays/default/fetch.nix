@@ -159,25 +159,20 @@ let
         };
       in
       if checked.git.leaveDotGit then
-        withPackages "rebuilding its .git directory" { inherit runCommand python3; } runCommand name
-          {
-            nativeBuildInputs = [ python3 ];
-            inherit checkout;
+        withPackages "rebuilding its .git directory" { inherit runCommand python3; } (
+          import ../../pkgs/fetch-entry {
+            inherit
+              runCommand
+              python3
+              name
+              checkout
+              ;
             inherit (checked.git) rev;
             commitObject = checked.git.commitObject.object;
-            gitlinks = builtins.toJSON checked.git.commitObject.gitlinks;
-            passAsFile = [ "gitlinks" ];
+            inherit (checked.git.commitObject) gitlinks;
             entryPath = path;
           }
-          ''
-            cp -R --no-preserve=ownership "$checkout" "$out"
-            chmod -R u+w "$out"
-            if ! printf '%s' "$commitObject" | base64 -d > "$TMPDIR/commit" 2> /dev/null; then
-              echo "purifier: the git entry at path \"$entryPath\": its commitObject.object is not base64" >&2
-              exit 1
-            fi
-            python3 ${./dot-git.py} "$out" "$TMPDIR/commit" "$gitlinksPath" "$rev" "$entryPath"
-          ''
+        )
       else
         checkout;
 

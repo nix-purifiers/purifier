@@ -42,7 +42,7 @@
       # Provider records are not derivations. Extend the public lib output
       # locally without changing Caisson's composed-library option type.
       lib = outputs.lib // {
-        jvmSdkAdapters.x86_64-linux = import ./nix/lib/jvm-sdk-adapters.nix {
+        jvmSdkAdapters.x86_64-linux = import ./lib-overlays/default/jvm-sdk-adapters.nix {
           pkgs = import inputs.nixpkgs {
             system = "x86_64-linux";
             config = { };

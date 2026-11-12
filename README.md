@@ -53,6 +53,11 @@ and its flake use the same revision of the library. We recommend
 importing only the root `default.nix`, because the layout of the files
 under `nix/` can change.
 
+The public Nix functions live in `lib-overlays/default/`. The root
+`default.nix` and `nix/lib/default.nix` remain import facades for consumers
+outside flakes. Private Git metadata construction belongs to
+`pkgs/fetch-entry/`; the documented tool paths continue to live in `tools/`.
+
 ## Entries
 
 An entry is an attribute set. Its kind is decided by which kind key it has,
