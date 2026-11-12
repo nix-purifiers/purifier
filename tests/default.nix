@@ -140,6 +140,31 @@ let
     echo b > b/file
     tar -cf "$out" a b
   '';
+  # npm's char-regex@1.0.2 has a 0666 package directory. Some archives
+  # also contain unreadable directories/files; extraction must repair access
+  # without turning ordinary source files into executables.
+  restrictiveArchive =
+    runCommand "restrictive-permissions.tar" { nativeBuildInputs = [ pkgs.python3 ]; }
+      ''
+        python3 - "$out" <<'PYTHON'
+        import io, sys, tarfile
+        with tarfile.open(sys.argv[1], "w") as archive:
+            for name, mode in [("package", 0o666), ("package/nested", 0o000)]:
+                entry = tarfile.TarInfo(name)
+                entry.type = tarfile.DIRTYPE
+                entry.mode = mode
+                archive.addfile(entry)
+            for name, mode, body in [
+                ("package/nested/source.js", 0o000, b"module.exports = 1;\n"),
+                ("package/run", 0o111, b"#!/bin/sh\necho ok\n"),
+            ]:
+                entry = tarfile.TarInfo(name)
+                entry.mode = mode
+                entry.size = len(body)
+                archive.addfile(entry, io.BytesIO(body))
+        PYTHON
+      '';
+
   nativeNpmGraph =
     pkgs.runCommand "npm-native-graph-capture"
       {
@@ -659,6 +684,34 @@ in
     test "$(ls -A "$unstripped")" = hello-2.12.1
     touch "$out"
   '';
+
+  fetch-archive-permissions =
+    let
+      unpack =
+        stripTop:
+        purifier.fetchEntry
+          {
+            inherit pkgs;
+            fetchurl = _: restrictiveArchive;
+          }
+          {
+            path = "restrictive-${if stripTop then "stripped" else "unstripped"}";
+            archive = {
+              url = "https://example.org/restrictive.tar";
+              mirrors = [ ];
+              inherit stripTop;
+            };
+            hash = lib.fakeHash;
+          };
+    in
+    runCommand "purifier-test-fetch-archive-permissions" { } ''
+      for root in ${unpack true} ${unpack false}/package; do
+        test "$(cat "$root/nested/source.js")" = 'module.exports = 1;'
+        test ! -x "$root/nested/source.js"
+        test -x "$root/run"
+      done
+      touch "$out"
+    '';
 
   # stripTop fails the build of an archive with two top-level entries. The
   # replacement fetchurl serves the archive.

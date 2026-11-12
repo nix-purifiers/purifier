@@ -124,7 +124,10 @@ let
         else
           tar -xf "$src" -C unpacked --no-same-owner --warning=no-timestamp
         fi
-        chmod -R u+w unpacked
+        # Published archives can omit read/search permissions on directories
+        # (char-regex@1.0.2 uses 0666). Repair access before descending, while
+        # preserving which ordinary files were executable.
+        chmod -R u+rwX unpacked
         if [ -n "$stripTop" ]; then
           shopt -s dotglob nullglob
           top=(unpacked/*)
