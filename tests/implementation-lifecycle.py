@@ -116,7 +116,7 @@ def main():
               make configuration;
 
             loader = source: let
-              loaded = (import "${bootstrap}/nix/lib/implementation-source.nix").resolve source;
+              loaded = (import "${bootstrap}/lib-overlays/default/implementation-source.nix").resolve source;
             in { rev=loaded.flake.sourceInfo.rev; narHash=loaded.flake.sourceInfo.narHash; };
           };
         }'''

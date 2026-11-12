@@ -6,7 +6,7 @@
 { pkgs, purifier }:
 let
   inherit (pkgs) lib;
-  entries = import ../nix/lib/entries.nix { inherit lib; };
+  entries = import ../lib-overlays/default/entries.nix { inherit lib; };
 
   # A fetcher that returns the arguments it was given.
   echo = args: args;
