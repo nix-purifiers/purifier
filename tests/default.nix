@@ -236,6 +236,14 @@ in
         touch "$out"
       '';
   source-input-model = import ./source-input.nix { inherit pkgs purifier; };
+  git-source-replay = runCommand "git-source-replay" {
+    nativeBuildInputs = [ pkgs.python3 pkgs.git ];
+  } ''
+    export HOME="$TMPDIR/home"
+    mkdir -p "$HOME"
+    python3 -B ${../.}/tests/git-source.py
+    touch "$out"
+  '';
   cross-type-unit =
     runCommand "purifier-cross-type-unit"
       {
