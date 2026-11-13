@@ -34,4 +34,5 @@ main([Out, Runtime]) ->
     end, Specs),
     Header = filename:join([Out, "lib", "otp_fixture_dep", "include", "value.hrl"]),
     ok = filelib:ensure_dir(Header),
-    ok = file:write_file(Header, "-define(OTP_VALUE, 42).\n").
+    ok = file:write_file(Header, "-define(OTP_VALUE, 42).\n"),
+    ok = filelib:ensure_dir(filename:join([Out, "lib", "otp_fixture_dep", "priv", "empty", "placeholder"])).

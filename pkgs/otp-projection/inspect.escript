@@ -64,7 +64,8 @@ application(Row, Runtime, Facts, Allowed) ->
     #{name => atom_to_binary(App), version => text(Version), sourceDirectory => text(Directory),
       observation => text(ObservationFile), origin => maps:get(<<"origin">>, Row),
       originIdentity => maps:get(<<"originIdentity">>, Row),
-      originDirectory => maps:get(<<"originDirectory">>, Row), root => maps:get(<<"root">>, Row),
+      originDirectory => maps:get(<<"originDirectory">>, Row),
+      inventoryIdentity => maps:get(<<"inventoryIdentity">>, Row), root => maps:get(<<"root">>, Row),
       compilerExecutable => text(maps:get(erlc, Observation)),
       appSHA256 => hash_file(File), modules => Actual,
       required => [atom_to_binary(A) || A <- proplists:get_value(applications, Props, [])],
@@ -101,6 +102,8 @@ deduplicate([App | Rest], Acc) ->
         [] -> deduplicate(Rest, [App | Acc]);
         [Prior] ->
             check(maps:get(originIdentity, Prior) =:= maps:get(originIdentity, App)
+                  andalso maps:get(originDirectory, Prior) =:= maps:get(originDirectory, App)
+                  andalso maps:get(inventoryIdentity, Prior) =:= maps:get(inventoryIdentity, App)
                   andalso maps:get(observation, Prior) =:= maps:get(observation, App)
                   andalso maps:get(appSHA256, Prior) =:= maps:get(appSHA256, App)
                   andalso maps:get(modules, Prior) =:= maps:get(modules, App), duplicate_application_owners),

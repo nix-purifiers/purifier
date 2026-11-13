@@ -37,17 +37,28 @@ def declared(path):
     return resolved
 
 
-def app_files(directory):
+def app_files(directory, directories=None):
     def walk(path, parents):
         actual = declared(path)
         if actual.is_dir():
             require(actual not in parents, "cyclic application directory: " + str(path))
+            if directories is not None:
+                directories.append((path, actual))
             for child in sorted(path.iterdir()):
                 yield from walk(child, parents | {actual})
         else:
             require(actual.is_file(), "unsupported non-regular app file")
             yield path, actual
     yield from walk(directory, set())
+
+
+def inventory(directory):
+    directories = []
+    files = [dict(path=str(path.relative_to(directory)), sha256=digest(actual),
+                  mode=actual.stat().st_mode & 0o777,
+                  executable=bool(actual.stat().st_mode & 0o111)) for path, actual in app_files(directory, directories)]
+    return dict(files=files, directories=[dict(path=str(path.relative_to(directory)),
+        mode=actual.stat().st_mode & 0o777) for path, actual in directories])
 
 
 roots = []
@@ -76,15 +87,20 @@ for dependency in spec["dependencies"]:
             require(safe(entry["path"]), "unsafe dependency file")
             actual = declared(directory / entry["path"])
             require(digest(actual) == entry["sha256"]
-                    and bool(actual.stat().st_mode & 0o111) == entry["executable"],
+                    and bool(actual.stat().st_mode & 0o111) == entry["executable"]
+                    and actual.stat().st_mode & 0o777 == entry["mode"],
                     "dependency application bytes or mode changed")
         original = declared(Path(app["originDirectory"]))
+        require(inventory(original) == inventory(directory), "dependency app inventory differs from its original producer")
         require(safe(app["name"]) and digest(declared(original / "ebin" / (app["name"] + ".app"))) == app["appSHA256"],
                 "dependency native app origin changed")
         roots.append(dict(directory=str(directory), observation=str(declared(Path(app["observation"]))),
                           origin=app["origin"], originIdentity=app["originIdentity"],
                           originDirectory=str(original), root=False))
 
+for root in roots:
+    root["inventoryIdentity"] = hashlib.sha256(json.dumps(inventory(Path(root["directory"])),
+        sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 plan_input = dict(spec, applications=roots)
 work = Path(os.environ["TMPDIR"])
 native_input = work / "otp-input.json"
@@ -108,7 +124,8 @@ for app in model["applications"]:
     app["directory"] = "lib/" + app["name"] + "-" + app["version"]
     destination = out / app["directory"]
     files = []
-    for original, actual in app_files(source):
+    directories = []
+    for original, actual in app_files(source, directories):
         relative = original.relative_to(source)
         data = actual.read_bytes()
         native_magic = data.startswith((b"\x7fELF", b"MZ", b"\xcf\xfa\xed\xfe", b"\xfe\xed\xfa\xcf",
@@ -120,8 +137,13 @@ for app in model["applications"]:
         shutil.copyfile(actual, target)
         executable = bool(actual.stat().st_mode & 0o111)
         target.chmod(0o755 if executable else 0o644)
-        files.append(dict(path=str(relative), sha256=digest(actual), executable=executable))
+        files.append(dict(path=str(relative), sha256=digest(actual), mode=actual.stat().st_mode & 0o777,
+                          executable=executable))
+    for original, _ in directories:
+        (destination / original.relative_to(source)).mkdir(parents=True, exist_ok=True)
     app["files"] = files
+    app["directories"] = [dict(path=str(path.relative_to(source)), mode=actual.stat().st_mode & 0o777)
+                          for path, actual in directories]
     observation = declared(Path(app["observation"]))
     app["observationSha256"] = digest(observation)
 model.update(format=spec["format"], system=spec["system"], runtimeIdentity=spec["runtimeIdentity"],

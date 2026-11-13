@@ -466,7 +466,9 @@ mandatory, included and optional dependencies. Complete compiled dependency
 views belong in `dependencies` as original Nix packages with `projections.otp`.
 An own-app output or source Hex archive is not a complete compiled closure.
 The build rejects missing required apps, conflicting app/module ownership,
-runtime collisions and incomplete native metadata. Native app versions and
+runtime collisions and incomplete native metadata. Deduplication requires the
+same original app directory and complete file inventory, hashes and modes;
+matching `.app` and BEAM metadata alone is insufficient. Native app versions and
 file bytes remain unchanged; the separate identity binds the producer,
 selection, runtime, dependency views and projector.
 

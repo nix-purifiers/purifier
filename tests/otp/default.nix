@@ -30,6 +30,7 @@ let
   app = project producer [ "otp_fixture_app" ] [ bound ];
   optional = project producer [ "otp_fixture_optional" ] [ ];
   optionalBound = project producer [ "otp_fixture_optional" ] [ bound ];
+  identicalInputs = project producer [ "otp_fixture_optional" ] [ bound bound ];
   included = project producer [ "otp_fixture_included" ] [ bound ];
   changed =
     label: commands:
@@ -77,6 +78,24 @@ let
     sed -i 's/{application,otp_fixture_dep,/{application,otp_fixture_duplicate,/' "$out/lib/duplicate/ebin/otp_fixture_duplicate.app"
   '';
   escaped = changed "escape" ''ln -s ${producer}/lib/otp_fixture_dep "$out/lib/escape"'';
+  divergentRoots = changed "divergent-roots" ''
+    cp -r "$out/lib/otp_fixture_dep" "$out/lib/divergent"
+    echo '-define(OTP_VALUE, 43).' > "$out/lib/divergent/include/value.hrl"
+    mkdir -p "$out/lib/divergent/priv"
+    echo 'different native resource' > "$out/lib/divergent/priv/data.txt"
+  '';
+  divergent = purifier.otpProjections {
+    producer = divergentRoots;
+    applications = [
+      (application "otp_fixture_dep")
+      {
+        path = "lib/divergent";
+        observation = "lib/otp_fixture_dep/ebin/otp-observation.term";
+      }
+    ];
+    inherit runtime runCommand python3;
+    system = pkgs.stdenv.hostPlatform.system;
+  };
   runtimeCollision = changed "runtime-collision" ''
     mv "$out/lib/otp_fixture_dep/ebin/otp_fixture_dep.app" "$out/lib/otp_fixture_dep/ebin/kernel.app"
     sed -i 's/{application,otp_fixture_dep,/{application,kernel,/' "$out/lib/otp_fixture_dep/ebin/kernel.app"
@@ -166,6 +185,8 @@ in
         target=Path('${app.otp}')/a['directory']/'ebin'/(a['name']+'.app')
         assert source.read_bytes()==target.read_bytes()
     assert {a['name'] for a in model['applications']}=={'otp_fixture_app','otp_fixture_dep'}
+    dep=next(a for a in model['applications'] if a['name']=='otp_fixture_dep')
+    assert (Path('${app.otp}')/dep['directory']/'priv/empty').is_dir()
     PY
     ${python3}/bin/python3 - <<'PY'
     import json
@@ -174,6 +195,8 @@ in
     assert {a['name'] for a in absent['applications']}=={'otp_fixture_optional'}
     assert {a['name'] for a in present['applications']}=={'otp_fixture_optional','otp_fixture_dep'}
     assert 'crypto' in {a['name'] for a in absent['runtimeApplications']}
+    identical=json.load(open('${identicalInputs.otp.catalog}'))
+    assert {a['name'] for a in identical['applications']}=={'otp_fixture_optional','otp_fixture_dep'}
     PY
     test -f ${included.otp.catalog}
     touch "$out"
@@ -206,4 +229,5 @@ in
   otp-runtime-module-collision =
     expect "runtime_module_collision"
       (project sdkModule [ "otp_fixture_dep" ] [ ]).otp;
+  otp-divergent-roots = expect "duplicate_application_owners" divergent.otp;
 }

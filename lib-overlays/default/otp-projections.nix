@@ -81,6 +81,8 @@ let
   identity = builtins.hashString "sha256" (
     builtins.toJSON {
       producer = (inputIdentity producer).hash;
+      producerRoot = toString producer;
+      runtimeRoot = toString runtime;
       inherit
         applications
         runtimeIdentity
