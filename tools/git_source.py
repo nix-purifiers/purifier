@@ -138,7 +138,11 @@ def config_preflight(source):
     for line in p.stdout.decode().splitlines():
         scope, key = line.split('\t', 1)
         if scope != 'local':
-            require(key in ('user.name', 'user.email', 'init.defaultbranch') or key.startswith('alias.'),
+            # Authentication configuration cannot affect these local-only
+            # reads. Values are never inspected or exported; native reads and
+            # replay disable global/system configuration and lazy fetching.
+            require(key in ('user.name', 'user.email', 'init.defaultbranch')
+                    or key.startswith(('alias.', 'credential.')),
                     'unsupported ambient configuration key: ' + key)
     gitdir = source / '.git'
     require(gitdir.is_dir() and not gitdir.is_symlink(), 'gitfile/worktree/bare input unsupported')

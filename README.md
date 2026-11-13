@@ -309,6 +309,12 @@ attributes fail explicitly. Capture exports only the reachable typed object
 closure. Replay verifies native object IDs and reconstructs repository metadata;
 it does not copy a checkout's `.git` directory.
 
+Ambient `credential.*` authentication settings are accepted by name only;
+their values are not exported. Local fact queries and replay disable ambient
+global/system configuration and lazy fetching, and do not invoke credential
+helpers. Local credential settings and other unsupported ambient settings
+still fail explicitly.
+
 `git = null` declares no Git state. Otherwise every field below is explicit:
 
 | Field | Meaning |
