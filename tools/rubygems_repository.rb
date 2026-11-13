@@ -30,6 +30,25 @@ def add_intrinsic(intrinsics, entry)
   intrinsics[name] = entry
 end
 specification.fetch("intrinsics", []).each { |entry| add_intrinsic(intrinsics, entry) }
+# Resolve generated selections only at build time. A safe lexical member can
+# still be a symlink; its real target must stay inside the selected producer.
+specification.fetch("generatedArchives", []).each do |selection|
+  raise "unsupported generated RubyGems archive descriptor" unless selection.keys.sort == ["path", "producer", "type"] && selection.fetch("type") == "generated-gem"
+  root = selection.fetch("producer")
+  member = selection.fetch("path")
+  unless member.nil?
+    raise "unsafe generated RubyGems archive member" unless member.is_a?(String) && !member.empty? && member !~ /[\\\x00-\x1f\x7f]/ && member.split("/", -1).all? { |part| !["", ".", ".."].include?(part) }
+    raise "generated RubyGems producer is not a directory: #{root}" unless File.directory?(root)
+    archive = File.join(root, member)
+    boundary = File.realpath(root) + File::SEPARATOR
+    raise "generated RubyGems archive escapes its producer: #{archive}" unless File.realpath(archive).start_with?(boundary)
+  else
+    archive = root
+  end
+  raise "generated RubyGems archive is not a regular file: #{archive}" unless File.file?(archive)
+  package = Gem::Package.new(archive)
+  package.verify
+end
 packages = specification.fetch("archives").map do |archive|
   [archive, Gem::Package.new(archive).spec, nil]
 end

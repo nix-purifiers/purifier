@@ -454,6 +454,15 @@ helper does not resolve or reinstall dependencies.
 `rubygemsProjections { archives; producer; roots ? null; dependencies ? [];
 ruby; indexRuby ? ruby; runCommand; intrinsics ? []; }` exports `projections.rubygems` with a `catalog` attribute.
 Pass native `.gem` archive paths and the Nix producer that owns them.
+For an archive produced by a derivation, an `archives` item can instead be
+`{ type = "generated-gem"; producer = generated; path = "gems/package.gem"; }`.
+The producer must carry an immutable Nix input reference; `path` selects a
+safe relative file inside its output. Use `path = null` when the producer
+output is itself the gem file. Evaluation identifies the producer and selection
+without realizing or inspecting the output. The build checks the selected
+file, rejects symlinks escaping a directory producer, and verifies the native
+gem before reading its coordinates and dependencies. This descriptor supplies
+no guessed package name, version, platform, or dependency metadata.
 The adapter uses RubyGems to rebuild owned packages with Nix-derived versions
 and exact runtime requirements for supplied gems. Dependency projections keep
 their archive bytes and versions; their integrity and native coordinates are

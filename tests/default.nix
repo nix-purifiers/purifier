@@ -755,6 +755,8 @@ in
   '';
 }
 
+// import ./rubygems/generated-archives.nix { inherit pkgs purifier; }
+
 // lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
   rubygems-ruby25 =
     let
