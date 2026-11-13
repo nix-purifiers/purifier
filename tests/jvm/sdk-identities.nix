@@ -106,7 +106,28 @@ let
         else
           pinnedAdapters.openjdk8.manager.runtimeHome == pinnedAdapters.openjdk8.home + "/jre"
           && pinnedAdapters.openjdk11.manager.runtimeHome == pinnedAdapters.openjdk11.home
-          && pinnedAdapters.openjdk17.manager.runtimeHome == pinnedAdapters.openjdk17.home;
+          && pinnedAdapters.openjdk17.manager.runtimeHome == pinnedAdapters.openjdk17.home
+          && pinnedAdapters.openjdk21.manager.runtimeHome == pinnedAdapters.openjdk21.home;
+      expected = true;
+    };
+    testPinnedJava21IdentityRetainsActualSdk = {
+      expr =
+        if pkgs.stdenv.hostPlatform.system != "x86_64-linux" then
+          true
+        else
+          let
+            selected = pinnedAdapters.openjdk21;
+            actual = pkgs.javaPackages.compiler.openjdk21.headless;
+            identity = purifier.jvmSdkIdentity {
+              inherit (selected) sdk home manager;
+              system = pkgs.stdenv.hostPlatform.system;
+            };
+          in
+          selected.sdk.drvPath == actual.drvPath
+          && selected.home == actual.home
+          && selected.manager.executable == "${actual.home}/bin/java"
+          && identity.payload.homeContext == builtins.getContext actual.home
+          && identity.managerIdentity.payload.runtimeHome == actual.home;
       expected = true;
     };
   };
@@ -114,7 +135,12 @@ let
 in
 pkgs.runCommand "purifier-jvm-sdk-identities" { } (
   if failures == [ ] then
-    "touch $out"
+    pkgs.lib.optionalString (pkgs.stdenv.hostPlatform.system == "x86_64-linux") ''
+      ${pinnedAdapters.openjdk21.manager.executable} -XshowSettings:properties -version 2> properties
+      grep -Fx '    java.home = ${pinnedAdapters.openjdk21.manager.runtimeHome}' properties
+      grep -E 'java.specification.version = 21$' properties
+    ''
+    + "touch $out"
   else
     "echo ${pkgs.lib.escapeShellArg (builtins.toJSON failures)} >&2; exit 1"
 )
