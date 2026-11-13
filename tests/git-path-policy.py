@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+import unicodedata
 
 spec = importlib.util.spec_from_file_location('git_source', Path(__file__).parents[1] / 'tools/git_source.py')
 g = importlib.util.module_from_spec(spec)
@@ -122,11 +123,21 @@ with tempfile.TemporaryDirectory(prefix='native-path-policy-') as temporary:
         g.replay(old, root / 'legacy-output', home)
     assert digest(old / 'capture.json') == seal
     prefix_results = {}
-    for kind, first, second in [('case', 'CaseDir', 'caseDir'),
-                                ('normalization', 'caf\u00e9', 'cafe\u0301')]:
+    for kind, requested in [('case', 'CaseDir'), ('normalization', 'caf\u00e9')]:
         original = root / ('prefix-source-' + kind)
         original.mkdir()
-        (original / first).mkdir()
+        (original / requested).mkdir()
+        names = os.listdir(original)
+        assert len(names) == 1
+        first = names[0]
+        if kind == 'case':
+            second = g.case_alternate(first)
+        else:
+            alternatives = {unicodedata.normalize('NFC', first),
+                            unicodedata.normalize('NFD', first)} - {first}
+            assert len(alternatives) == 1
+            second = alternatives.pop()
+        assert second is not None and second != first
         relation = g.native_relation(original, '.', first, second)
         if relation == 'distinct':
             (original / second).mkdir()
