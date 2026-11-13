@@ -7,6 +7,7 @@ let
   java8 = pkgs.javaPackages.compiler.openjdk8.headless;
   java11 = pkgs.javaPackages.compiler.openjdk11.headless;
   java17 = pkgs.javaPackages.compiler.openjdk17.headless;
+  java21 = pkgs.javaPackages.compiler.openjdk21.headless;
   system = pkgs.stdenv.hostPlatform.system;
 in
 assert
@@ -33,5 +34,12 @@ assert
     home = java17.home;
     executable = "${java17.home}/bin/java";
     runtimeHome = java17.home;
+  };
+  openjdk21 = adapter {
+    sdk = java21;
+    inherit system;
+    home = java21.home;
+    executable = "${java21.home}/bin/java";
+    runtimeHome = java21.home;
   };
 }
