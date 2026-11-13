@@ -31,6 +31,8 @@
   jvmRepositoryTool = ../../tools/jvm_repository.py;
   sourceInput = import ./source-input.nix { inherit lib; };
   otpProjections = import ./otp-projections.nix { inherit lib; };
+  sourceInputFromCapture = import ./source-input-from-capture.nix { inherit lib; };
+  sourceInputTools = ../../pkgs/source-input;
   implementation = import ./implementation.nix { inherit lib; };
   implementationSource = import ./implementation-source.nix;
   inputIdentity = import ./input-identity.nix { inherit lib; };

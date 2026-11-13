@@ -290,6 +290,31 @@ state changes. Passing only `src` or the comparison digest loses that guarantee.
 The constructor does no builds, network access, or reading of ambient `.git`.
 Both source and object closure must carry Nix store/derivation references.
 
+The shared helper is available as `pkgs.callPackage purifier.sourceInputTools { }`.
+Run `purifier-source-input capture /absolute/checkout /new/capture` locally,
+then `purifier-source-input validate /new/capture`. Capture reads the caller's
+Git executable and does not fetch or modify the checkout's index. Import the
+prepared capture with `purifier.sourceInputFromCapture /new/capture`.
+Builders pass the resulting full `sourceState` JSON to
+`purifier-source-input replay state.json /new/destination` before running Git.
+Replay requires immutable Nix source/object inputs and a new destination;
+it restores working contents separately from the captured index.
+
+The helper supports ordinary SHA-1/SHA-256 repositories, selected local/tag/remote
+refs, annotated tags, detached or branch HEAD, shallow boundaries, and stage-zero
+index entries with assume-unchanged/skip-worktree flags. Unsupported local Git
+configuration, active hooks, worktrees, submodules, merge stages, intent-to-add,
+alternates, partial clones, sparse/split indexes, replacement objects and local
+attributes fail explicitly. Capture exports only the reachable typed object
+closure. Replay verifies native object IDs and reconstructs repository metadata;
+it does not copy a checkout's `.git` directory.
+
+Ambient `credential.*` authentication settings are accepted by name only;
+their values are not exported. Local fact queries and replay disable ambient
+global/system configuration and lazy fetching, and do not invoke credential
+helpers. Local credential settings and other unsupported ambient settings
+still fail explicitly.
+
 `git = null` declares no Git state. Otherwise every field below is explicit:
 
 | Field | Meaning |
