@@ -22,7 +22,11 @@ let
   };
 in
 if
-  builtins.attrNames manifest != [ "format" "git" "source" ]
+  builtins.attrNames manifest != [
+    "format"
+    "git"
+    "source"
+  ]
   || manifest.format != "purifier-source-capture-v1"
   || !builtins.isAttrs manifest.git
   || (manifest.git.objects or null) != "objects"
@@ -31,5 +35,7 @@ then
 else
   sourceInput {
     src = source;
-    git = manifest.git // { inherit objects; };
+    git = manifest.git // {
+      inherit objects;
+    };
   }
