@@ -248,6 +248,7 @@ in
         export HOME="$TMPDIR/home"
         mkdir -p "$HOME"
         python3 -B ${../.}/tests/git-source.py
+        python3 -B ${../.}/tests/git-path-policy.py
         touch "$out"
       '';
   cross-type-unit =

@@ -41,12 +41,92 @@ let
     };
   fails = value: !(builtins.tryEval (builtins.deepSeq value true)).success;
   original = make { };
+  pathPolicy = {
+    format = "purifier-git-path-policy-v1";
+    ignoreCase = false;
+    precomposeUnicode = false;
+    witnesses = [
+      {
+        directory = ".";
+        entry = "file";
+        alternate = "File";
+        kind = "case";
+        relation = "distinct";
+      }
+    ];
+    queries = {
+      statusPorcelainV1Z = "";
+      indexStageZ = "";
+      untrackedZ = "";
+    };
+  };
   stateBuild =
     input:
     pkgs.runCommand "source-state-identity" {
       sourceState = builtins.toJSON input.sourceState;
     } "touch $out";
   tests = {
+    testPathPolicyVersionAndIdentity = {
+      expr =
+        let
+          input = make { inherit pathPolicy; };
+          changed = make {
+            pathPolicy = pathPolicy // {
+              ignoreCase = true;
+            };
+          };
+        in
+        input.sourceState.format == "purifier-source-input-v2"
+        && input.sourceState.git.pathPolicy == pathPolicy
+        && input.identity != changed.identity
+        && original.sourceState.format == "purifier-source-input-v1";
+      expected = true;
+    };
+    testPathPolicyRejectsUnknownOrIncompleteEvidence = {
+      expr =
+        builtins.all
+          (
+            policy:
+            fails (make {
+              pathPolicy = policy;
+            })
+          )
+          [
+            (builtins.removeAttrs pathPolicy [ "queries" ])
+            (pathPolicy // { hostInode = 1; })
+            (pathPolicy // { ignoreCase = 1; })
+            (pathPolicy // { witnesses = pathPolicy.witnesses ++ pathPolicy.witnesses; })
+            (
+              pathPolicy
+              // {
+                queries = pathPolicy.queries // {
+                  indexStageZ = "0";
+                };
+              }
+            )
+          ];
+      expected = true;
+    };
+    testPathPolicyQueryAndWitnessIdentity = {
+      expr =
+        let
+          input = make { inherit pathPolicy; };
+          query = make {
+            pathPolicy = pathPolicy // {
+              queries = pathPolicy.queries // {
+                untrackedZ = "00";
+              };
+            };
+          };
+          witness = make {
+            pathPolicy = pathPolicy // {
+              witnesses = map (w: w // { relation = "alias"; }) pathPolicy.witnesses;
+            };
+          };
+        in
+        input.identity != query.identity && input.identity != witness.identity;
+      expected = true;
+    };
     testStateChangesDerivation = {
       expr =
         (stateBuild original).drvPath != (stateBuild (make {

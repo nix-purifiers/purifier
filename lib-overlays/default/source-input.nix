@@ -82,15 +82,18 @@ let
       let
         check = condition: message: { inherit condition message; };
         checks = [
-          (check (exact ([
-            "objectFormat"
-            "head"
-            "refs"
-            "shallow"
-            "objects"
-            "index"
-            "remotes"
-          ] ++ lib.optional (git ? pathPolicy) "pathPolicy") git) "git must explicitly name its complete versioned state")
+          (check (exact (
+            [
+              "objectFormat"
+              "head"
+              "refs"
+              "shallow"
+              "objects"
+              "index"
+              "remotes"
+            ]
+            ++ lib.optional (git ? pathPolicy) "pathPolicy"
+          ) git) "git must explicitly name its complete versioned state")
           (check (
             !(git ? pathPolicy) || (import ./git-path-policy.nix { inherit lib; }) git.pathPolicy
           ) "invalid identity-bound Git path policy")
@@ -159,7 +162,11 @@ let
         );
 
   state = {
-    format = if checked != null && checked ? pathPolicy then "purifier-source-input-v2" else "purifier-source-input-v1";
+    format =
+      if checked != null && checked ? pathPolicy then
+        "purifier-source-input-v2"
+      else
+        "purifier-source-input-v1";
     source = toString src;
     git = checked;
   };

@@ -27,8 +27,12 @@ if
     "git"
     "source"
   ]
-  || manifest.format != "purifier-source-capture-v1"
+  || !(builtins.elem manifest.format [
+    "purifier-source-capture-v1"
+    "purifier-source-capture-v2"
+  ])
   || !builtins.isAttrs manifest.git
+  || ((manifest.format == "purifier-source-capture-v2") != (manifest.git ? pathPolicy))
   || (manifest.git.objects or null) != "objects"
 then
   throw "purifier: invalid prepared Git source capture"
