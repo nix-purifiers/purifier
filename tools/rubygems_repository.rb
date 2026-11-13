@@ -7,7 +7,6 @@ require "fileutils"
 require "tmpdir"
 require "zlib"
 require "digest"
-require "base64"
 require File.expand_path("rubygems_version_scheme.rb", File.dirname(__FILE__)) unless ENV["PURIFIER_RUBYGEMS_VERSION_SCHEME_PRELOADED"] == "1"
 
 specification = JSON.parse(File.read(ARGV.fetch(0)))
@@ -58,7 +57,7 @@ specification.fetch("dependencies", []).each do |input|
   catalog.fetch("packages").each do |entry|
     PurifierRubyGemsVersionScheme.validate_provided!(entry, version_scheme, native_sdk_identity, native_index_identity, native_index_profile)
     archive = File.join(input.fetch("repository"), entry.fetch("archive"))
-    actual = "sha512-#{Base64.encode64(Digest::SHA512.file(archive).digest).delete("\n")}"
+    actual = "sha512-#{[Digest::SHA512.file(archive).digest].pack("m").delete("\n")}"
     raise "RubyGems input archive integrity mismatch: #{archive}" unless actual == entry.fetch("integrity")
     gem_spec = Gem::Package.new(archive).spec
     unless [gem_spec.name, gem_spec.version.to_s, gem_spec.platform.to_s] == entry.values_at("name", "version", "platform")
@@ -195,7 +194,7 @@ packages.each do |archive, original, provided|
     File.open(quick, "wb") { |file| file.write(Zlib::Deflate.deflate(Marshal.dump(spec))) } unless ENV["PURIFIER_RUBYGEMS_SEPARATE_INDEX"] == "1"
     entry = { "name" => spec.name, "version" => spec.version.to_s,
                  "sourceVersion" => provided ? provided.fetch("sourceVersion") : original.version.to_s, "platform" => spec.platform.to_s,
-                 "integrity" => "sha512-#{Base64.encode64(Digest::SHA512.file(source_archive).digest).delete("\n")}",
+                 "integrity" => "sha512-#{[Digest::SHA512.file(source_archive).digest].pack("m").delete("\n")}",
                  "archive" => "gems/#{filename}" }
     index_entries << entry
     if provided
