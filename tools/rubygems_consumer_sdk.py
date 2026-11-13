@@ -36,22 +36,62 @@ def read(path):
 
 
 def run(args, env=None, deadline_seconds=90, output_limit=8388608):
-    child = subprocess.Popen(
-        args,
-        env=env,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=True,
-    )
+    # Keep the session leader alive until cleanup. The command may exit while
+    # descendants still hold its pipes; reaping it must not release our group ID.
+    supervisor = """
+import json, os, select, signal, subprocess, sys
+control, status = map(int, sys.argv[1:3])
+try:
+    try:
+        command = subprocess.Popen(sys.argv[3:], stdin=subprocess.DEVNULL, close_fds=True)
+    except OSError as error:
+        os.write(status, (json.dumps({"error": str(error)[:512]}) + "\\n").encode())
+        os.close(status)
+        command = None
+    os.close(1)
+    os.close(2)
+    reported = command is None
+    while True:
+        if select.select([control], [], [], 0.05)[0] and not os.read(control, 1):
+            break
+        if not reported and command.poll() is not None:
+            os.write(status, (json.dumps({"returncode": command.returncode}) + "\\n").encode())
+            os.close(status)
+            reported = True
+finally:
+    # Only the session leader signals its own current group, never a saved ID.
+    os.killpg(0, signal.SIGKILL)
+"""
+    control_read, control_write = os.pipe()
+    status_read, status_write = os.pipe()
+    try:
+        child = subprocess.Popen(
+            [sys.executable, "-I", "-c", supervisor, str(control_read), str(status_write), *args],
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+            pass_fds=(control_read, status_write),
+        )
+    except BaseException:
+        os.close(control_write)
+        os.close(status_read)
+        raise
+    finally:
+        os.close(control_read)
+        os.close(status_write)
+    status = os.fdopen(status_read, "rb", buffering=0)
     selector = selectors.DefaultSelector()
     output = [bytearray(), bytearray()]
+    result = bytearray()
+    returncode = None
     try:
-        for index, stream in enumerate((child.stdout, child.stderr)):
+        for index, stream in enumerate((child.stdout, child.stderr, status)):
             os.set_blocking(stream.fileno(), False)
             selector.register(stream, selectors.EVENT_READ, index)
         deadline = time.monotonic() + deadline_seconds
-        while selector.get_map() or child.poll() is None:
+        while selector.get_map():
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise ValueError("SDK command deadline exceeded")
@@ -59,24 +99,42 @@ def run(args, env=None, deadline_seconds=90, output_limit=8388608):
                 data = os.read(key.fileobj.fileno(), 65536)
                 if not data:
                     selector.unregister(key.fileobj)
+                    if key.data == 2:
+                        if not result or len(result) > 1024:
+                            raise ValueError("SDK supervisor did not report command exit")
+                        report = json.loads(result)
+                        if set(report) == {"error"}:
+                            raise ValueError("SDK command failed: " + report["error"])
+                        if set(report) != {"returncode"} or type(report["returncode"]) is not int:
+                            raise ValueError("invalid SDK supervisor status")
+                        returncode = report["returncode"]
+                    continue
+                if key.data == 2:
+                    result.extend(data)
+                    if len(result) > 1024:
+                        raise ValueError("SDK supervisor status exceeds bound")
                     continue
                 output[key.data].extend(data)
                 if sum(map(len, output)) > output_limit:
                     raise ValueError("SDK output exceeds bound")
-        if child.returncode:
+        if returncode is None:
+            raise ValueError("SDK supervisor did not report command exit")
+        if returncode:
             raise ValueError(
                 "SDK command failed: " + output[1].decode(errors="replace")
             )
         return output[0].decode()
     finally:
+        # EOF asks the live session leader to kill its own group, including any
+        # descendants retaining pipes after the command exits. Never reap first.
+        os.close(control_write)
         try:
-            os.killpg(child.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        child.wait(timeout=5)
-        selector.close()
-        child.stdout.close()
-        child.stderr.close()
+            child.wait(timeout=5)
+        finally:
+            selector.close()
+            child.stdout.close()
+            child.stderr.close()
+            status.close()
 
 
 def attest(descriptor, closure_file, nix, runtime_ruby=None):
