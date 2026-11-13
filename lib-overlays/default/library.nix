@@ -30,6 +30,7 @@
   clojureRewriteTool = ../../tools/rewrite_clojure.clj;
   jvmRepositoryTool = ../../tools/jvm_repository.py;
   sourceInput = import ./source-input.nix { inherit lib; };
+  otpProjections = import ./otp-projections.nix { inherit lib; };
   implementation = import ./implementation.nix { inherit lib; };
   implementationSource = import ./implementation-source.nix;
   inputIdentity = import ./input-identity.nix { inherit lib; };
