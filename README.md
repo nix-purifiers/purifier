@@ -449,6 +449,42 @@ include the target ABI, while incidental helper metadata does not identify a
 foreign package. The producer's installed tree remains authoritative; the
 helper does not resolve or reinstall dependencies.
 
+### `otpProjections`
+
+`otpProjections { producer; applications; runtime; system; runCommand; python3;
+dependencies ? []; }` exports `otp`, a view of already compiled native OTP
+applications. An application selection is
+`{ path = "lib/example"; observation = "lib/example/ebin/otp-observation.term"; }`
+relative to the immutable producer. `runtime` is the actual caller-selected
+Erlang package. The producer records native compiler/runtime observations in
+`purifier-otp-production-v1` terms; the adapter checks those against the executed
+runtime and actual BEAM chunks. It does not compile sources or infer a toolchain
+from an application version.
+
+The native `.app` is authoritative for application name, version, modules and
+mandatory, included and optional dependencies. Complete compiled dependency
+views belong in `dependencies` as original Nix packages with `projections.otp`.
+An own-app output or source Hex archive is not a complete compiled closure.
+The build rejects missing required apps, conflicting app/module ownership,
+runtime collisions and incomplete native metadata. Deduplication requires the
+same original app directory and complete file inventory, hashes and modes;
+matching `.app` and BEAM metadata alone is insufficient. Native app versions and
+file bytes remain unchanged; the separate identity binds the producer,
+selection, runtime, dependency views and projector.
+
+The returned view has `applicationRoot`, `catalog`, `runtime` and `system`
+attributes. Use its `applicationRoot` as `ERL_LIBS`; native `include_lib` and
+application startup operate on the compiled view. The build verifies startup
+and loaded module origins. The catalog retains original file, application,
+runtime and producer origins. Evaluation does not inspect unbuilt outputs.
+
+The initial subset requires a native build and a runtime providing the native
+JSON inspection facilities. It rejects custom NIFs, native payloads and native
+loader imports pending a separate ABI/loader closure contract. It makes no
+cross-runtime, cross-platform or general NIF compatibility claim. All runtime
+and compiled dependency inputs must be explicit; no SDK is guessed and no
+source-package fallback runs.
+
 ### `rubygemsProjections`
 
 `rubygemsProjections { archives; producer; roots ? null; dependencies ? [];
