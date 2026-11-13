@@ -290,7 +290,50 @@ state changes. Passing only `src` or the comparison digest loses that guarantee.
 The constructor does no builds, network access, or reading of ambient `.git`.
 Both source and object closure must carry Nix store/derivation references.
 
-`git = null` declares no Git state. Otherwise every field below is explicit:
+The shared helper is available as `pkgs.callPackage purifier.sourceInputTools { }`.
+Run `purifier-source-input capture /absolute/checkout /new/capture` locally,
+then `purifier-source-input validate /new/capture`. Capture reads the caller's
+Git executable and does not fetch or modify the checkout's index. Import the
+prepared capture with `purifier.sourceInputFromCapture /new/capture`.
+Builders pass the resulting full `sourceState` JSON to
+`purifier-source-input replay state.json /new/destination` before running Git.
+Replay requires immutable Nix source/object inputs and a new destination;
+it restores working contents separately from the captured index.
+
+The helper supports ordinary SHA-1/SHA-256 repositories, selected local/tag/remote
+refs, annotated tags, detached or branch HEAD, shallow boundaries, and stage-zero
+index entries with assume-unchanged/skip-worktree flags. Unsupported local Git
+configuration, active hooks, worktrees, submodules, merge stages, intent-to-add,
+alternates, partial clones, sparse/split indexes, replacement objects and local
+attributes fail explicitly. Capture exports only the reachable typed object
+closure. Replay verifies native object IDs and reconstructs repository metadata;
+it does not copy a checkout's `.git` directory.
+
+Ambient `credential.*` authentication settings are accepted by name only;
+their values are not exported. Local fact queries and replay disable ambient
+global/system configuration and lazy fetching, and do not invoke credential
+helpers. Local credential settings and other unsupported ambient settings
+still fail explicitly.
+
+New captures use `purifier-source-capture-v2` and prepare
+`purifier-source-input-v2` states. Their `pathPolicy` records the native
+`ignoreCase` and `precomposeUnicode` booleans, relative pathname witnesses, and
+fixed native query results. The full policy participates in source identity.
+Capture resolves native Git spellings to actual working-directory entries;
+indexed and working spellings remain separate, including case-only changes.
+Replay checks the owned destination's observed alias and Unicode behavior,
+sets both Git options explicitly, and compares the native query bytes.
+Unknown required source behavior, mismatched capabilities, and directory-prefix
+aliases fail explicitly. These checks cover the captured snapshot, not every
+possible later filename or filesystem mutation. Native platform execution is
+required to validate that platform; accepting a configuration key is insufficient.
+
+Legacy v1 states remain readable without automatic rewriting. Replay rejects
+incompatible native initialization defaults with a recapture error. No-state
+and legacy state serialization and identities retain their existing forms.
+
+`git = null` declares no Git state. Otherwise every legacy field below is
+explicit; v2 additionally requires the complete `pathPolicy`:
 
 | Field | Meaning |
 | --- | --- |
@@ -301,6 +344,7 @@ Both source and object closure must carry Nix store/derivation references.
 | `objects` | Immutable Nix reference to the captured object closure, including objects retained only by selected refs and non-gitlink index entries. |
 | `index` | Records `{ path, mode, oid, stage, flags }`. `flags` explicitly contains boolean `assumeUnchanged`, `skipWorktree`, and `intentToAdd`; these affect native dirty-state behavior. Includes executable/symlink/gitlink modes and merge stages, without a filesystem stat cache. |
 | `remotes` | Names mapped to `{ url, defaultRef }`. URLs are repository identities, without credentials (HTTP userinfo, password userinfo, query strings and fragments are rejected); `defaultRef` is a full local branch ref or explicitly unknown (`null`). |
+| `pathPolicy` | V2 only: `{ format = "purifier-git-path-policy-v1", ignoreCase, precomposeUnicode, witnesses, queries }`. Witnesses contain `{ directory, entry, alternate, kind, relation }` using source-relative names and observed `alias`/`distinct` relations. Fixed `statusPorcelainV1Z`, `indexStageZ`, and `untrackedZ` query outputs are hexadecimal bytes. Host inode numbers and absolute witness paths are excluded. |
 
 The source tree and index are distinct inputs: do not construct an index by
 adding every source file, or replace real commits with synthetic ones. Dirty,
@@ -324,7 +368,7 @@ captured local data; keeping a URL does not authorize a live remote query.
 Missing required history or facts must fail rather than yield a guessed version.
 Native equivalence also depends on Git configuration, tracking configuration,
 `info/exclude`, attributes, filters, sparse-checkout and other repository state.
-These are not represented by this initial schema: capture adapters must reject
+Effects beyond the explicit v2 pathname policy remain unrepresented: capture adapters must reject
 unsupported effects and replay under an explicit controlled configuration,
 rather than silently discard them. Paths containing credentials or authentication
 configuration must never be captured; URL checks do not replace capture-side
