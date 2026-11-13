@@ -103,7 +103,7 @@ if pid == 0:
         os.close(2)
     os.write(write, b"R")
     os.close(write)
-    time.sleep(1)
+    time.sleep(2)
     open(sys.argv[1], "w").write("leaked descendant")
     os._exit(0)
 os.close(write)
@@ -117,7 +117,7 @@ os._exit(0)
         try:
             result = module.run(
                 [sys.executable, "-c", code, marker, mode],
-                deadline_seconds=0.2,
+                deadline_seconds=1,
                 output_limit=4096,
             )
         except ValueError as error:
@@ -125,8 +125,10 @@ os._exit(0)
             assert ("output exceeds" if mode == "output-limit" else "deadline") in str(error)
         else:
             assert mode == "closed-orphan" and result == ""
+        pid = int(Path(marker + ".pid").read_text())
+        assert pid > 1 and pid != os.getpid(), "descendant did not start"
         assert_released(marker + ".lock")
-    time.sleep(1.2)
+    time.sleep(2.2)
     assert all(not Path(marker).exists() for marker in markers), markers
     # Losing the caller closes control while the command is still alive.
     # The supervisor must observe EOF without waiting for that command to exit.
@@ -147,7 +149,7 @@ spec.loader.exec_module(module)
 module.run([sys.executable, "-c", sys.argv[2], sys.argv[3], sys.argv[4]])
 """
     parent = subprocess.Popen(
-        [sys.executable, "-c", caller, str(Path(module.__file__)), worker, ready, marker],
+        [sys.executable, "-B", "-c", caller, str(Path(module.__file__)), worker, ready, marker],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
