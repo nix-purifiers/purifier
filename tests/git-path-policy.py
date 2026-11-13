@@ -121,10 +121,38 @@ with tempfile.TemporaryDirectory(prefix='native-path-policy-') as temporary:
     else:
         g.replay(old, root / 'legacy-output', home)
     assert digest(old / 'capture.json') == seal
+    prefix_results = {}
+    for kind, first, second in [('case', 'CaseDir', 'caseDir'),
+                                ('normalization', 'caf\u00e9', 'cafe\u0301')]:
+        original = root / ('prefix-source-' + kind)
+        original.mkdir()
+        (original / first).mkdir()
+        relation = g.native_relation(original, '.', first, second)
+        if relation == 'distinct':
+            (original / second).mkdir()
+        (original / first / 'a').write_bytes(b'a\n')
+        (original / second / 'b').write_bytes(b'b\n')
+        # Feed two requested spellings to the materializer. An immutable
+        # source may support both even when its destination does not.
+        payload = {first + '/a': {'kind': 'file', 'executable': False,
+                                  'sha256': digest(original / first / 'a')},
+                   second + '/b': {'kind': 'file', 'executable': False,
+                                   'sha256': digest(original / second / 'b')}}
+        target = root / ('prefix-destination-' + kind)
+        if relation == 'alias':
+            rejected(lambda: g.copy_source_exact(original, target, payload),
+                     'native working directory-prefix alias collision')
+        else:
+            g.copy_source_exact(original, target, payload)
+            assert {first, second} == set(os.listdir(target))
+            assert (target / first / 'a').read_bytes() == b'a\n'
+            assert (target / second / 'b').read_bytes() == b'b\n'
+        prefix_results[kind] = {'nativeRelation': relation,
+                                'result': 'alias rejected' if relation == 'alias' else 'distinct names preserved'}
     assert digest(source / '.git/index') == index
     assert g.facts(source, env) == before
     print(json.dumps({'status': 'passed', 'nativeDefaultPolicy': {
         'ignoreCase': policy['ignoreCase'], 'precomposeUnicode': policy['precomposeUnicode']},
         'witnesses': len(policy['witnesses']), 'caseOnlyIndexWorkingSpellingsPreserved': True,
         'nativeQueriesMatch': True, 'sourceIndexUnchanged': True, 'negativeControls': 9,
-        'legacyUnrewritten': True}))
+        'prefixMaterialization': prefix_results, 'legacyUnrewritten': True}))
