@@ -472,6 +472,12 @@ in
       touch "$out"
     '';
 
+  rubygems-isolated-stdlib = pkgs.runCommand "purifier-rubygems-isolated-stdlib" { } ''
+    ${pkgs.python3}/bin/python3 -B ${./rubygems/isolated_repository.py} \
+      ${pkgs.ruby_3_4} ${../tools}/rubygems_repository.rb \
+      ${./rubygems0811/input/ancient_leaf-1.0.0.gem} "$out"
+  '';
+
   rubygems-repository =
     pkgs.runCommand "purifier-rubygems-repository-tests"
       {
