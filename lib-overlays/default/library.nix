@@ -42,6 +42,8 @@
   jvmSdkSourcesTool = ../../tools/jvm_sdk_sources.py;
   projectInputs = import ./project-inputs.nix { inherit lib; };
   fetchEntry = import ./fetch.nix { inherit lib; };
+  replayServer = import ./replay-server.nix { inherit lib; };
+  httpRecordsTool = ../../tools/http_records.py;
   tree = import ./tree.nix { inherit lib; };
   manifest = import ./manifest.nix { inherit lib; };
   inherit (import ./lock.nix { inherit lib; }) checkLock entriesFor;

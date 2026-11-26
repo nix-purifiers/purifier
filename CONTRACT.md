@@ -250,6 +250,33 @@ content. A stale, tampered, malformed or incomplete lockfile fails, in the
 command and at Nix evaluation, with a message that names the command that
 fixes it.
 
+## Network replay and handlers
+
+A purifier whose build tool downloads over HTTP from arbitrary build code,
+as a CMake configure that runs pip does, records the downloads in its lock
+run behind a recording proxy and replays them in the sandbox with the
+library's replay server, `lib.purifier.replayServer { mitm-cache }`. The
+replay serves each URL from `<scheme>/<host>/<path>` of a tree of download
+entries, and a directory URL from the `index.html` in that directory, as
+HTML.
+
+Some responses cannot be replayed as recorded: a package index rewrites
+the page of a project whenever the project publishes a file, so a hash of
+the page in a lockfile goes stale. The purifier of that ecosystem
+understands such responses, and supplies a handler for them. A handler is
+a program that reads the lock run's HTTP records as JSON lines on standard
+input and prints the URLs it claims and the download entries that replace
+them, at the paths the replay server reads. `tools/http_records.py`
+(`lib.purifier.httpRecordsTool`) defines the records, the paths and the
+output, and holds the helpers a handler written in Python uses.
+
+The purifier that runs the lock, the host, takes the handlers as a list of
+programs in its scope, `httpHandlers`, which a project sets with
+`<tool>-purifier.overrideScope`. It drops each claimed URL from its own
+entries, writes the handlers' entries into its lockfile beside them, and
+replays them with the rest, so a build from the lockfile needs no handler.
+The handler of a Python package index is pip-purifier's `pypi-handler`.
+
 ## The commands
 
 Every purifier has these commands. Where the build tool has a plugin

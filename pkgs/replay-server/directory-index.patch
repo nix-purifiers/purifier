@@ -1,0 +1,41 @@
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -11,7 +11,7 @@
+     tokio_tungstenite::tungstenite::http::uri::Scheme,
+     Body, HttpContext, HttpHandler, Proxy, RequestOrResponse,
+ };
+-use hyper::{StatusCode, Uri};
++use hyper::{header::HeaderValue, StatusCode, Uri};
+ use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+ use hyper_util::{
+     client::legacy::{connect::HttpConnector, Client},
+@@ -355,6 +355,13 @@
+                         for comp in url.path().split('/').filter(|x| !x.is_empty()) {
+                             path.push(comp);
+                         }
++                        // A directory URL, such as a page of a package index, is served
++                        // from the index.html in its directory, as HTML.
++                        let mut html = false;
++                        if tokio::fs::metadata(&path).await.map(|m| m.is_dir()).unwrap_or(false) {
++                            path.push("index.html");
++                            html = true;
++                        }
+                         if let Ok(mut file) = tokio::fs::File::open(path).await {
+                             let (mut tx, rx) =
+                                 mpsc::channel::<Result<hyper::body::Bytes, hudsucker::Error>>(1);
+@@ -378,7 +385,14 @@
+                                     }
+                                 });
+                             }
+-                            Response::new(body).into()
++                            let mut res = Response::new(body);
++                            if html {
++                                res.headers_mut().insert(
++                                    "content-type",
++                                    HeaderValue::from_static("text/html; charset=utf-8"),
++                                );
++                            }
++                            res.into()
+                         } else {
+                             let mut res = Response::new("not found".into());
+                             *res.status_mut() = StatusCode::NOT_FOUND;

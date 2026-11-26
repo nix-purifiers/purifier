@@ -591,6 +591,19 @@ in
       '';
   projections = import ./projections.nix { inherit pkgs purifier; };
   evaluation = import ./evaluation.nix { inherit pkgs purifier; };
+  replay-server = import ./replay-server.nix { inherit pkgs purifier; };
+  http-records-unit =
+    runCommand "purifier-http-records-unit"
+      {
+        nativeBuildInputs = [ pkgs.python3 ];
+      }
+      ''
+        mkdir -p tools tests
+        cp ${../tools/http_records.py} tools/http_records.py
+        cp ${./test_http_records.py} tests/test_http_records.py
+        python -B tests/test_http_records.py
+        touch $out
+      '';
   jvm-sdk-identities = import ./jvm/sdk-identities.nix { inherit pkgs purifier; };
 
   fetch-file = runCommand "purifier-test-fetch-file" { } ''
